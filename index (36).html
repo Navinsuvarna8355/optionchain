@@ -1310,6 +1310,7 @@ tr.atm-row td.strike-cell { color:var(--accent); }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -1443,6 +1444,14 @@ tr.atm-row td.strike-cell { color:var(--accent); }
     <div class="ctrl-spacer"></div>
     <button class="btn btn-primary btn-sm" onclick="fetchChain()">⟳ REFRESH</button>
     <button class="btn btn-ghost btn-sm" id="autoBtn" onclick="toggleAuto()">AUTO: OFF</button>
+    <button class="btn btn-ghost btn-sm" onclick="openGithubSettings()" style="border-color:#6e40c960;color:#a78bfa;font-size:9px;">⚙ GITHUB OI</button>
+    <span id="ghSaveStatus" style="font-family:var(--font-mono);font-size:8px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+  </div>
+  <!-- GitHub OI status bar -->
+  <div id="oiGhBar" style="display:none;align-items:center;gap:8px;padding:3px 12px;background:rgba(110,64,201,.06);border-bottom:1px solid rgba(110,64,201,.15);font-family:var(--font-mono);font-size:8px;">
+    <span style="color:#a78bfa;">⚙ GitHub OI:</span>
+    <span id="oiGhInfo" style="flex:1;color:var(--muted);"></span>
+    <button onclick="showOIDataModal()" style="background:none;border:1px solid var(--border2);color:var(--muted);padding:1px 7px;border-radius:4px;cursor:pointer;font-size:8px;">📂 MANAGE</button>
   </div>
 
   <div class="buying-danger-banner" id="buyingDangerBanner">
@@ -1944,8 +1953,15 @@ tr.atm-row td.strike-cell { color:var(--accent); }
       </div>
 
       <div style="flex:1"></div>
-      <!-- Indicator lines mini legend -->
-      <div id="indMiniLegend" style="display:flex;gap:8px;align-items:center;"></div>
+      <!-- Signal type legend -->
+      <div id="indMiniLegend" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;"></div>
+      <div style="display:flex;gap:6px;align-items:center;font-family:var(--font-mono);font-size:8px;">
+        <span style="color:#00e5a0;">▲ BUY CE</span>
+        <span style="color:#ff3d6b;">▼ BUY PE</span>
+        <span style="color:#ff6b00;">◆ SELL CE</span>
+        <span style="color:#7c3aed;">◆ SELL PE</span>
+
+      </div>
     </div>
     <!-- Active strategy result panel (below legend) -->
     <div id="activeStratResult" style="display:none;border-bottom:1px solid var(--border);background:rgba(0,0,0,.15);padding:8px 12px;font-family:var(--font-mono);font-size:9px;"></div>
@@ -1973,13 +1989,16 @@ tr.atm-row td.strike-cell { color:var(--accent); }
 
       <div id="backtestBody" style="display:none;">
         <!-- Data load bar -->
-        <div style="display:flex;align-items:center;gap:8px;padding:7px 12px;background:rgba(0,0,0,.2);border-bottom:1px solid var(--border);">
-          <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted);">Chart data:</span>
-          <span id="btDataInfo" style="font-family:var(--font-mono);font-size:9px;color:var(--accent);">0 bars loaded</span>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:7px 12px;background:rgba(0,0,0,.2);border-bottom:1px solid var(--border);">
+          <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted);">Chart:</span>
+          <span id="btDataInfo" style="font-family:var(--font-mono);font-size:9px;color:var(--accent);">0 bars</span>
           <span id="btDataWarn" style="font-family:var(--font-mono);font-size:9px;color:#ff3d6b;display:none;"></span>
-          <div style="flex:1"></div>
-          <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted);">1 year backtest ke liye:</span>
-          <button onclick="loadOneYearData()" style="background:rgba(0,201,255,.15);border:1px solid var(--accent);color:var(--accent);padding:4px 12px;border-radius:4px;cursor:pointer;font-family:var(--font-mono);font-size:10px;font-weight:bold;">📥 LOAD 1Y DATA</button>
+          <button onclick="loadOneYearData()" style="background:rgba(0,201,255,.15);border:1px solid var(--accent);color:var(--accent);padding:3px 10px;border-radius:4px;cursor:pointer;font-family:var(--font-mono);font-size:10px;font-weight:bold;">📥 1Y DAILY</button>
+          <div style="width:1px;height:16px;background:var(--border);"></div>
+          <span style="font-family:var(--font-mono);font-size:9px;color:#a78bfa;">OI History:</span>
+          <span id="btOiInfo" style="font-family:var(--font-mono);font-size:9px;color:var(--muted);">not loaded</span>
+          <button onclick="loadGHOIForBacktest()" style="background:rgba(110,64,201,.15);border:1px solid #a78bfa60;color:#a78bfa;padding:3px 10px;border-radius:4px;cursor:pointer;font-family:var(--font-mono);font-size:10px;font-weight:bold;">📂 LOAD OI DATA</button>
+          <button onclick="openGithubSettings()" style="background:none;border:none;color:var(--muted);font-size:9px;cursor:pointer;font-family:var(--font-mono);">⚙</button>
         </div>
         <!-- Tab bar -->
         <div style="display:flex;border-bottom:1px solid var(--border);background:var(--panel3);">
@@ -2055,7 +2074,7 @@ tr.atm-row td.strike-cell { color:var(--accent); }
               <button onclick="clearBacktest()" style="background:var(--panel3);border:1px solid var(--border2);color:var(--muted);padding:7px 12px;border-radius:5px;cursor:pointer;font-family:var(--font-mono);font-size:10px;">CLEAR</button>
             </div>
           </div>
-          <div id="btResults" style="font-family:var(--font-mono);font-size:10px;"></div>
+          <div id="btResults" style="display:none;"></div>
         </div>
 
 
@@ -3731,7 +3750,7 @@ function getStratNote(name, atm, spot, step) {
 let candleChart    = null;
 let emaAllCandles  = [];
 let emaViewOffset  = 0;
-const EMA_VIEW_BARS = 80;
+let EMA_VIEW_BARS = 80;
 let currentTf      = '1minute';
 
 // ── Indicator registry ───────────────────────────────
@@ -4117,35 +4136,203 @@ function buildIndicatorDatasets(candles, viewStart, viewEnd) {
     }
   });
 
-  // EMA crossover signals (close EMA crosses open EMA)
+  // ── Live OI metrics from current chainData ──────────
+  let liveOI = null;
+  if (chainData && chainData.length) {
+    let tCallOI=0, tPutOI=0, maxCOI=0, maxPOI=0, mCallS=0, mPutS=0;
+    let callBld=0, putBld=0, callUnw=0, putUnw=0;
+    const liveSpot = chainData[0]?.underlying_spot_price || 0;
+    const liveStep = INSTRUMENTS[document.getElementById('symbolSel')?.value]?.step || 50;
+    const liveAtm  = Math.round(liveSpot/liveStep)*liveStep;
+    chainData.forEach(d => {
+      const ce=d.call_options?.market_data||{}, pe=d.put_options?.market_data||{};
+      const coi=ce.oi||0, poi=pe.oi||0;
+      const cChg=coi-(ce.prev_oi||0), pChg=poi-(pe.prev_oi||0);
+      tCallOI+=coi; tPutOI+=poi;
+      if(cChg>0) callBld+=cChg; else callUnw+=Math.abs(cChg);
+      if(pChg>0) putBld+=pChg;  else putUnw+=Math.abs(pChg);
+      if(coi>maxCOI){maxCOI=coi; mCallS=d.strike_price;}
+      if(poi>maxPOI){maxPOI=poi; mPutS=d.strike_price;}
+    });
+    const livePCR = tCallOI>0 ? tPutOI/tCallOI : 1;
+
+    // ATM LTP aur change
+    const atmRow   = chainData.find(d => d.strike_price === liveAtm);
+    const atmCeLtp = atmRow?.call_options?.market_data?.ltp        || 0;
+    const atmPeLtp = atmRow?.put_options?.market_data?.ltp         || 0;
+    const atmCePrev= atmRow?.call_options?.market_data?.close_price || atmCeLtp;
+    const atmPePrev= atmRow?.put_options?.market_data?.close_price  || atmPeLtp;
+    const ceLtpChg = atmCePrev > 0 ? ((atmCeLtp - atmCePrev) / atmCePrev * 100) : 0;
+    const peLtpChg = atmPePrev > 0 ? ((atmPeLtp - atmPePrev) / atmPePrev * 100) : 0;
+    // LTP rising = option buyers in control
+    const ceLtpRising = ceLtpChg > 0.5;   // CE LTP > 0.5% upar
+    const peLtpRising = peLtpChg > 0.5;   // PE LTP > 0.5% upar
+
+    liveOI = {
+      pcr:livePCR, callWall:mCallS, putWall:mPutS,
+      isBullish:livePCR>1.2, isNeutral:livePCR>=0.8&&livePCR<=1.2, isBearish:livePCR<0.8,
+      callBuild:callBld, putBuild:putBld, callUnwind:callUnw, putUnwind:putUnw,
+      putWallStrong: mPutS > liveAtm,
+      callWallStrong: mCallS < liveAtm*1.02,
+      // LTP data
+      atmCeLtp, atmPeLtp, ceLtpChg, peLtpChg,
+      ceLtpRising, peLtpRising,
+    };
+  }
+
+  // ── EMA + OI combined signal generation ──────────────
+  // Rules:
+  // 1. Sirf CROSSOVER bar pe signal — not every bar
+  // 2. Cooldown: signal ke baad min 5 bars tak koi signal nahi
+  // 3. OI strong confirmation required
+  // 4. Candle body + previous candle same direction (trend confirm)
+
+  const signalBuyCE  = new Array(candles.length).fill(null);
+  const signalBuyPE  = new Array(candles.length).fill(null);
+  const signalSellCE = new Array(candles.length).fill(null);
+  const signalSellPE = new Array(candles.length).fill(null);
+  const signalNoTrade= new Array(candles.length).fill(null);
+
+
+
   if (emaCloseFull && emaOpenFull) {
-    for (let i = 1; i < candles.length; i++) {
-      if (emaCloseFull[i]==null||emaOpenFull[i]==null||emaCloseFull[i-1]==null||emaOpenFull[i-1]==null) continue;
-      if (emaCloseFull[i-1] <= emaOpenFull[i-1] && emaCloseFull[i] > emaOpenFull[i]) cemaCrossSignalsCE[i] = closes[i];
-      if (emaCloseFull[i-1] >= emaOpenFull[i-1] && emaCloseFull[i] < emaOpenFull[i]) cemaCrossSignalsPE[i] = closes[i];
+    for (let i = 3; i < candles.length; i++) {
+      if (emaCloseFull[i]==null||emaOpenFull[i]==null) continue;
+
+      // Only on actual crossover bar
+      const bullCross = emaCloseFull[i-1] <= emaOpenFull[i-1] && emaCloseFull[i] > emaOpenFull[i];
+      const bearCross = emaCloseFull[i-1] >= emaOpenFull[i-1] && emaCloseFull[i] < emaOpenFull[i];
+
+      if (!bullCross && !bearCross) continue;
+
+      // Plain EMA cross (always plot, small — no OI filter)
+      if (bullCross) cemaCrossSignalsCE[i] = closes[i];
+      if (bearCross) cemaCrossSignalsPE[i] = closes[i];
+
+      if (!liveOI) continue;
+
+      // Candle confirmation
+      const bullCandle = closes[i] > opens[i] && closes[i-1] > opens[i-1];
+      const bearCandle = closes[i] < opens[i] && closes[i-1] < opens[i-1];
+
+      // OI direction
+      const oiBull = liveOI.pcr > 1.1 && liveOI.putBuild > liveOI.callBuild;
+      const oiBear = liveOI.pcr < 0.9 && liveOI.callBuild > liveOI.putBuild;
+
+      // Price trend (last 5 bars)
+      const lookback = Math.min(5, i);
+      const recentCloses = closes.slice(i - lookback, i + 1);
+      const priceUpTrend   = recentCloses[recentCloses.length-1] > recentCloses[0];
+      const priceDownTrend = recentCloses[recentCloses.length-1] < recentCloses[0];
+
+      // Last 3 consecutive — strong momentum
+      const last3Bull = i>=2 && closes[i]>closes[i-1] && closes[i-1]>closes[i-2];
+      const last3Bear = i>=2 && closes[i]<closes[i-1] && closes[i-1]<closes[i-2];
+
+      // Combined confirmation:
+      // Tier 1 (Strong): OI aligned + price trend
+      // Tier 2 (Moderate): OI neutral + strong 3-bar momentum + price trend
+      const confirmBull = (oiBull && priceUpTrend) || (!oiBear && last3Bull && priceUpTrend);
+      const confirmBear = (oiBear && priceDownTrend) || (!oiBull && last3Bear && priceDownTrend);
+
+      // ── SIGNALS: EMA cross + Combined confirm + LTP ──
+      if (bullCross && bullCandle && confirmBull && liveOI.ceLtpRising) {
+        signalBuyCE[i] = closes[i];
+      }
+      else if (bearCross && bearCandle && confirmBear && liveOI.peLtpRising) {
+        signalBuyPE[i] = closes[i];
+      }
+      else if (bearCross && liveOI.callWallStrong && oiBear && bearCandle && priceDownTrend && !liveOI.ceLtpRising) {
+        signalSellCE[i] = closes[i];
+      }
+      else if (bullCross && liveOI.putWallStrong && oiBull && bullCandle && priceUpTrend && !liveOI.peLtpRising) {
+        signalSellPE[i] = closes[i];
+      }
+      // Conflict — no signal
     }
   }
 
   const labels = emaAllCandles.slice(viewStart,viewEnd).map(c=>fmtCandleLabel(c[0],currentTf));
-  const vSigCE = cemaCrossSignalsCE.slice(viewStart,viewEnd);
-  const vSigPE = cemaCrossSignalsPE.slice(viewStart,viewEnd);
-  const visH   = emaAllCandles.slice(viewStart,viewEnd).map(c=>c[2]);
-  const visL   = emaAllCandles.slice(viewStart,viewEnd).map(c=>c[3]);
-  const yPad   = (Math.max(...visH) - Math.min(...visL)) * 0.08;
+  const vSigCE  = cemaCrossSignalsCE.slice(viewStart,viewEnd);
+  const vSigPE  = cemaCrossSignalsPE.slice(viewStart,viewEnd);
+  const vBuyCE  = signalBuyCE.slice(viewStart,viewEnd);
+  const vBuyPE  = signalBuyPE.slice(viewStart,viewEnd);
+  const vSellCE = signalSellCE.slice(viewStart,viewEnd);
+  const vSellPE = signalSellPE.slice(viewStart,viewEnd);
+  const vNoTrd  = signalNoTrade.slice(viewStart,viewEnd);
+  const visH    = emaAllCandles.slice(viewStart,viewEnd).map(c=>c[2]);
+  const visL    = emaAllCandles.slice(viewStart,viewEnd).map(c=>c[3]);
+  const yPad    = (Math.max(...visH) - Math.min(...visL)) * 0.08;
 
-  // EMA cross signals (from indicator panel — always shown as default)
-  if (vSigCE.some(v=>v!=null)) {
-    datasets.push({
-      type:'scatter', label:'EMA_CE',
-      data: vSigCE.map((v,i)=>v!=null?{x:i, y:v-yPad}:null).filter(Boolean),
-      backgroundColor:'#00e5a0', pointStyle:'triangle', radius:8, order:0, xAxisID:'x2',
+  // Get actual candle high/low for each bar in view
+  const viewHighs = emaAllCandles.slice(viewStart,viewEnd).map(c=>c[2]); // candle high
+  const viewLows  = emaAllCandles.slice(viewStart,viewEnd).map(c=>c[3]); // candle low
+
+  // Signal Y positions: below low for buy signals, above high for sell signals
+  // GAP = per-candle average range * 0.6 — ensures signal clears wick on any TF
+  const avgCandleRange = viewHighs.reduce((s,h,i) => s + (h - viewLows[i]), 0) / (viewHighs.length || 1);
+  const GAP = Math.max(avgCandleRange * 0.6, yPad * 0.3);
+
+  const dlStyle = (color, txt, pos) => ({
+    display: true,
+    color,
+    font: { family:'Space Mono', size:9, weight:'bold' },
+    formatter: () => txt,
+    anchor: pos === 'above' ? 'end'   : 'start',
+    align:  pos === 'above' ? 'top'   : 'bottom',
+    offset: 2,
+    backgroundColor: 'rgba(0,0,0,.75)',
+    borderRadius: 3,
+    padding: { top:2, bottom:2, left:5, right:5 },
+  });
+
+  if (liveOI) {
+    // BUY CE — triangle below candle low, label below
+    if (vBuyCE.some(v=>v!=null)) datasets.push({
+      type:'scatter', label:'BUY CE',
+      data: vBuyCE.map((v,i) => v!=null ? { x:i, y: viewLows[i] - GAP } : null).filter(Boolean),
+      backgroundColor:'#00e5a0', borderColor:'#fff', borderWidth:1,
+      pointStyle:'triangle', radius:11, order:0, xAxisID:'x2',
+      datalabels: dlStyle('#00e5a0','BUY CE','below'),
     });
-  }
-  if (vSigPE.some(v=>v!=null)) {
-    datasets.push({
+    // BUY PE — triangle above candle high, label above
+    if (vBuyPE.some(v=>v!=null)) datasets.push({
+      type:'scatter', label:'BUY PE',
+      data: vBuyPE.map((v,i) => v!=null ? { x:i, y: viewHighs[i] + GAP } : null).filter(Boolean),
+      backgroundColor:'#ff3d6b', borderColor:'#fff', borderWidth:1,
+      pointStyle:'triangle', rotation:180, radius:11, order:0, xAxisID:'x2',
+      datalabels: dlStyle('#ff3d6b','BUY PE','above'),
+    });
+    // SELL CE — diamond above candle high, label above
+    if (vSellCE.some(v=>v!=null)) datasets.push({
+      type:'scatter', label:'SELL CE',
+      data: vSellCE.map((v,i) => v!=null ? { x:i, y: viewHighs[i] + GAP } : null).filter(Boolean),
+      backgroundColor:'#ff6b00', borderColor:'#fff', borderWidth:1,
+      pointStyle:'rectRot', radius:9, order:0, xAxisID:'x2',
+      datalabels: dlStyle('#ff9f40','SELL CE','above'),
+    });
+    // SELL PE — diamond below candle low, label below
+    if (vSellPE.some(v=>v!=null)) datasets.push({
+      type:'scatter', label:'SELL PE',
+      data: vSellPE.map((v,i) => v!=null ? { x:i, y: viewLows[i] - GAP } : null).filter(Boolean),
+      backgroundColor:'#7c3aed', borderColor:'#fff', borderWidth:1,
+      pointStyle:'rectRot', radius:9, order:0, xAxisID:'x2',
+      datalabels: dlStyle('#a78bfa','SELL PE','below'),
+    });
+
+  } else {
+    // ── No OI: plain EMA cross signals ──────────────────
+    if (vSigCE.some(v=>v!=null)) datasets.push({
+      type:'scatter', label:'EMA_CE',
+      data: vSigCE.map((v,i) => v!=null ? { x:i, y: viewLows[i] - GAP } : null).filter(Boolean),
+      backgroundColor:'#00e5a0', pointStyle:'triangle', radius:8, order:0, xAxisID:'x2',
+      datalabels: dlStyle('#00e5a0','BUY CE','below'),
+    });
+    if (vSigPE.some(v=>v!=null)) datasets.push({
       type:'scatter', label:'EMA_PE',
-      data: vSigPE.map((v,i)=>v!=null?{x:i, y:v+yPad}:null).filter(Boolean),
+      data: vSigPE.map((v,i) => v!=null ? { x:i, y: viewHighs[i] + GAP } : null).filter(Boolean),
       backgroundColor:'#ff3d6b', pointStyle:'triangle', rotation:180, radius:8, order:0, xAxisID:'x2',
+      datalabels: dlStyle('#ff3d6b','BUY PE','above'),
     });
   }
 
@@ -4248,20 +4435,15 @@ function selectStrategy(id) {
 
 function showActiveStratResult() {
   const panel = document.getElementById('activeStratResult');
-  if (!panel) return;
-  const strat = activeStrategies.find(s => s.id === _activeStratId);
-  if (!strat || !strat.signals.length) {
-    panel.style.display = 'none';
-    return;
-  }
-  // Pull result from stored results
-  const resultEl = document.getElementById('btResults');
-  if (!resultEl || !resultEl.innerHTML.trim()) {
-    panel.style.display = 'none';
+  const src   = document.getElementById('btResults');
+  if (!panel || !src || !src.innerHTML.trim()) {
+    if (panel) panel.style.display = 'none';
     return;
   }
   panel.style.display = 'block';
-  panel.innerHTML = resultEl.innerHTML;
+  panel.innerHTML = src.innerHTML;
+  // Scroll chart into view
+  panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
 
@@ -4300,16 +4482,60 @@ function renderEmaChart() {
 
   // Signal box
   const signalBox = document.getElementById('emaSignalBox');
+  // Find last signal across all types
+  const allSigArrays = [signalsCE, signalsPE];
   let lastSigText = '';
-  for (let i = candles.length-1; i >= 0; i--) {
-    if (signalsCE[i]!=null) { lastSigText = `Last: <span style="color:#00e5a0">▲ BUY CE</span> @ bar ${i+1} &nbsp;|&nbsp; `; break; }
-    if (signalsPE[i]!=null) { lastSigText = `Last: <span style="color:#ff3d6b">▼ BUY PE</span> @ bar ${i+1} &nbsp;|&nbsp; `; break; }
-  }
   const li = candles.length - 1;
-  const bias = emaCloseFull && emaOpenFull
-    ? (emaCloseFull[li] > emaOpenFull[li] ? '<span style="color:#00e5a0">BULLISH</span>' : '<span style="color:#ff3d6b">BEARISH</span>')
-    : '';
-  if (signalBox) signalBox.innerHTML = lastSigText + (bias ? `Bias: ${bias}` : '');
+
+  // Last EMA cross
+  for (let i=li; i>=0; i--) {
+    if (signalsCE[i]!=null) { lastSigText=`Last EMA: <span style="color:#00e5a0">▲ BUY CE</span> @${i+1} &nbsp;|&nbsp;`; break; }
+    if (signalsPE[i]!=null) { lastSigText=`Last EMA: <span style="color:#ff3d6b">▼ BUY PE</span> @${i+1} &nbsp;|&nbsp;`; break; }
+  }
+
+  const emaBiasNow = emaCloseFull && emaOpenFull
+    ? (emaCloseFull[li] > emaOpenFull[li] ? '<span style="color:#00e5a0">▲ BULLISH</span>' : '<span style="color:#ff3d6b">▼ BEARISH</span>')
+    : '<span style="color:var(--muted)">—</span>';
+
+  // OI bias display
+  let oiBiasHtml = '';
+  if (chainData && chainData.length) {
+    let tC=0,tP=0,cB=0,pB=0;
+    chainData.forEach(d=>{
+      const ce=d.call_options?.market_data||{},pe=d.put_options?.market_data||{};
+      const coi=ce.oi||0,poi=pe.oi||0;
+      tC+=coi; tP+=poi;
+      const cChg=coi-(ce.prev_oi||0), pChg=poi-(pe.prev_oi||0);
+      if(cChg>0) cB+=cChg; if(pChg>0) pB+=pChg;
+    });
+    const pcr = tC>0 ? tP/tC : 1;
+    const oiColor = pcr>1.2?'#00e5a0': pcr<0.8?'#ff3d6b':'#ff9f40';
+    const oiLabel = pcr>1.2?'BULLISH': pcr<0.8?'BEARISH':'NEUTRAL';
+    const buildStr = pB>cB
+      ? `<span style="color:#00e5a0">Put Build ↑</span>`
+      : cB>pB ? `<span style="color:#ff3d6b">Call Build ↑</span>`
+      : `<span style="color:var(--muted)">Balanced</span>`;
+    oiBiasHtml = `&nbsp;|&nbsp; OI: <span style="color:${oiColor}">${oiLabel}</span> (PCR ${pcr.toFixed(2)}) ${buildStr}`;
+
+    // ATM LTP info
+    if (chainData.length) {
+      const liveStep2 = INSTRUMENTS[document.getElementById('symbolSel')?.value]?.step || 50;
+      const liveSpot2 = chainData[0]?.underlying_spot_price || 0;
+      const liveAtm2  = Math.round(liveSpot2/liveStep2)*liveStep2;
+      const atmR2     = chainData.find(d => d.strike_price === liveAtm2);
+      const cLtp      = atmR2?.call_options?.market_data?.ltp || 0;
+      const pLtp      = atmR2?.put_options?.market_data?.ltp  || 0;
+      const cPrev     = atmR2?.call_options?.market_data?.close_price || cLtp;
+      const pPrev     = atmR2?.put_options?.market_data?.close_price  || pLtp;
+      const cChg      = cPrev > 0 ? ((cLtp-cPrev)/cPrev*100).toFixed(1) : '0';
+      const pChg      = pPrev > 0 ? ((pLtp-pPrev)/pPrev*100).toFixed(1) : '0';
+      const cColor    = +cChg >= 0 ? '#00e5a0' : '#ff3d6b';
+      const pColor    = +pChg >= 0 ? '#00e5a0' : '#ff3d6b';
+      oiBiasHtml += ` &nbsp;|&nbsp; ATM CE: <span style="color:${cColor}">₹${cLtp.toFixed(1)} (${+cChg>=0?'+':''}${cChg}%)</span> PE: <span style="color:${pColor}">₹${pLtp.toFixed(1)} (${+pChg>=0?'+':''}${pChg}%)</span>`;
+    }
+  }
+
+  if (signalBox) signalBox.innerHTML = `${lastSigText}EMA: ${emaBiasNow}${oiBiasHtml}`;
 
   updateLegendBar();
 
@@ -4334,6 +4560,7 @@ function renderEmaChart() {
 
   const ctx = document.getElementById('candleCanvas').getContext('2d');
   if (candleChart) { candleChart.destroy(); candleChart = null; }
+  if (window.ChartDataLabels) Chart.register(ChartDataLabels);
   Chart.register(tvCrosshairPlugin);
 
   candleChart = new Chart(ctx, {
@@ -4343,7 +4570,34 @@ function renderEmaChart() {
       responsive:true, maintainAspectRatio:false, animation:false,
       layout:{ padding:{ right:68, bottom:20 } },
       plugins:{
+        datalabels: { display: false },  // default off — each signal dataset overrides
         legend:{ display:false },
+        zoom: {
+          pan: {
+            enabled: true,
+            mode: 'x',
+            onPan({ chart }) {
+              // Sync pan with our emaViewOffset
+              const xScale = chart.scales.x;
+              const total  = emaAllCandles.length;
+              const viewSize = xScale.max - xScale.min;
+              const newOffset = Math.max(0, Math.min(total - EMA_VIEW_BARS, Math.round(total - xScale.max - 1)));
+              emaViewOffset = newOffset;
+            },
+          },
+          zoom: {
+            wheel:  { enabled: true, speed: 0.1 },
+            pinch:  { enabled: true },
+            mode:   'x',
+            onZoom({ chart }) {
+              const xScale = chart.scales.x;
+              const visibleBars = Math.max(20, Math.round(xScale.max - xScale.min));
+              // Update EMA_VIEW_BARS equivalent — re-render with new view
+              window._chartViewBars = visibleBars;
+              emaViewOffset = Math.max(0, emaAllCandles.length - Math.round(xScale.max) - 1);
+            },
+          },
+        },
         tooltip:{
           backgroundColor:'#0d1420', borderColor:'#1e3050', borderWidth:1,
           titleColor:'#00c9ff', bodyColor:'#ddeeff',
@@ -4388,6 +4642,83 @@ function scrollEmaChart(pct) {
   renderEmaChart();
 }
 function resetEmaChart() { emaViewOffset = 0; renderEmaChart(); }
+
+// ── TradingView-style drag pan ────────────────────────
+(function initChartDrag() {
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartOffset = 0;
+  const BARS_PER_PX = 0.15; // sensitivity
+
+  function getCanvas() { return document.getElementById('candleCanvas'); }
+
+  function onMouseDown(e) {
+    if (e.button !== 0) return; // left click only
+    isDragging    = true;
+    dragStartX    = e.clientX;
+    dragStartOffset = emaViewOffset;
+    getCanvas().style.cursor = 'grabbing';
+    e.preventDefault();
+  }
+
+  function onMouseMove(e) {
+    if (!isDragging || !emaAllCandles.length) return;
+    const dx      = dragStartX - e.clientX;          // positive = drag left = scroll right (newer)
+    const barDiff = Math.round(dx * BARS_PER_PX);
+    const newOff  = Math.max(0, Math.min(emaAllCandles.length - EMA_VIEW_BARS, dragStartOffset + barDiff));
+    if (newOff !== emaViewOffset) {
+      emaViewOffset = newOff;
+      renderEmaChart();
+    }
+  }
+
+  function onMouseUp() {
+    if (!isDragging) return;
+    isDragging = false;
+    const c = getCanvas();
+    if (c) c.style.cursor = 'crosshair';
+  }
+
+  // Mouse wheel zoom (bars visible)
+  function onWheel(e) {
+    if (!emaAllCandles.length) return;
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 10 : -10;  // scroll down = zoom out, up = zoom in
+    const newBars = Math.max(20, Math.min(emaAllCandles.length, EMA_VIEW_BARS + delta));
+    if (newBars !== EMA_VIEW_BARS) {
+      // Keep right edge fixed when zooming
+      EMA_VIEW_BARS = newBars;  // note: this is const but we reassign via window
+      renderEmaChart();
+    }
+  }
+
+  // Attach after DOM ready
+  document.addEventListener('DOMContentLoaded', () => {
+    // Re-attach on each render (canvas gets replaced)
+    const origRender = window.renderEmaChart || function(){};
+    // Use event delegation on wrapper
+    const wrap = document.getElementById('emaChartWrap');
+    if (!wrap) return;
+    wrap.addEventListener('mousedown',  onMouseDown);
+    wrap.addEventListener('mousemove',  onMouseMove);
+    wrap.addEventListener('mouseup',    onMouseUp);
+    wrap.addEventListener('mouseleave', onMouseUp);
+    wrap.addEventListener('wheel', onWheel, { passive: false });
+    wrap.style.cursor = 'crosshair';
+    // Touch support
+    let touchStartX = 0, touchStartOff = 0;
+    wrap.addEventListener('touchstart', e => {
+      touchStartX   = e.touches[0].clientX;
+      touchStartOff = emaViewOffset;
+    }, { passive: true });
+    wrap.addEventListener('touchmove', e => {
+      if (!emaAllCandles.length) return;
+      const dx = touchStartX - e.touches[0].clientX;
+      const newOff = Math.max(0, Math.min(emaAllCandles.length - EMA_VIEW_BARS, touchStartOff + Math.round(dx * BARS_PER_PX)));
+      if (newOff !== emaViewOffset) { emaViewOffset = newOff; renderEmaChart(); }
+    }, { passive: true });
+  });
+})();
 
 // ══ INDICATOR PANEL ══════════════════════════════════
 function openIndicatorPanel() {
@@ -4500,6 +4831,238 @@ async function loadOneYearData() {
   const bars = emaAllCandles.length;
   if (info) info.textContent = `${bars} bars loaded (${currentTf})`;
   if (btn)  { btn.textContent = bars > 0 ? `✓ ${bars} bars ready` : '📥 LOAD 1Y DATA'; btn.disabled = false; }
+}
+
+// ══ OI HISTORICAL STORAGE — GitHub API ══════════════════
+function ghConfig() {
+  return {
+    token : localStorage.getItem('gh_token')  || '',
+    user  : localStorage.getItem('gh_user')   || 'Navinsuvarna8355',
+    repo  : localStorage.getItem('gh_repo')   || 'optionchain',
+    branch: localStorage.getItem('gh_branch') || 'main',
+  };
+}
+function ghSaveConfig(t,u,r,b) {
+  localStorage.setItem('gh_token',t); localStorage.setItem('gh_user',u);
+  localStorage.setItem('gh_repo',r);  localStorage.setItem('gh_branch',b);
+  updateGhBar();
+}
+async function ghGetFile(path) {
+  const {token,user,repo,branch}=ghConfig();
+  const r=await fetch(`https://api.github.com/repos/${user}/${repo}/contents/${path}?ref=${branch}`,
+    {headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json'}});
+  if(r.status===404) return null;
+  if(!r.ok) throw new Error(`GET ${r.status}`);
+  return r.json();
+}
+async function ghPutFile(path,str,msg,sha) {
+  const {token,user,repo,branch}=ghConfig();
+  const body={message:msg,content:btoa(unescape(encodeURIComponent(str))),branch};
+  if(sha) body.sha=sha;
+  const r=await fetch(`https://api.github.com/repos/${user}/${repo}/contents/${path}`,
+    {method:'PUT',headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok) throw new Error(`PUT ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+function buildOISnapshot() {
+  if(!chainData||!chainData.length) return null;
+  const instrKey=document.getElementById('symbolSel')?.value||'';
+  const symbol=INSTRUMENTS[instrKey]?.label||'UNKNOWN';
+  const expiry=document.getElementById('expirySel')?.value||'';
+  const spot=chainData[0]?.underlying_spot_price||0;
+  const now=new Date(), ist=new Date(now.getTime()+5.5*60*60*1000);
+  const date=ist.toISOString().slice(0,10), time=ist.toISOString().slice(11,19);
+  const strikes=chainData.map(d=>({
+    strike:d.strike_price,
+    call_oi:d.call_options?.market_data?.oi||0, put_oi:d.put_options?.market_data?.oi||0,
+    call_prev:d.call_options?.market_data?.prev_oi||0, put_prev:d.put_options?.market_data?.prev_oi||0,
+    call_ltp:d.call_options?.market_data?.ltp||0, put_ltp:d.put_options?.market_data?.ltp||0,
+    call_vol:d.call_options?.market_data?.volume||0, put_vol:d.put_options?.market_data?.volume||0,
+  }));
+  return {symbol,expiry,date,time,spot,strikes};
+}
+let _ghSaving=false;
+async function saveOISnapshot() {
+  const cfg=ghConfig();
+  if(!cfg.token){updateGhStatus('⚠ Token nahi — ⚙ GITHUB OI set karo','#ff9f40');return;}
+  if(_ghSaving) return;
+  _ghSaving=true;
+  const snap=buildOISnapshot();
+  if(!snap){_ghSaving=false;return;}
+  const {symbol,date}=snap;
+  const month=date.slice(0,7);
+  const fname=`${symbol}${date.replace(/-/g,'')}.json`;
+  const path=`${symbol}/${month}/${fname}`;
+  updateGhStatus(`⏳ Saving ${symbol} ${date}...`,'#ff9f40');
+  try {
+    const existing=await ghGetFile(path);
+    const sha=existing?.sha||null;
+    const jsonStr=JSON.stringify(snap,null,2);
+    await ghPutFile(path,jsonStr,`OI ${symbol} ${date} ${snap.time}`,sha);
+    updateGhStatus(`✓ ${symbol}/${month}/${fname}`,'#00e5a0');
+  } catch(e) {
+    console.error('GH save:',e);
+    updateGhStatus(`✗ ${e.message}`,'#ff3d6b');
+  }
+  _ghSaving=false;
+}
+function updateGhStatus(msg,color) {
+  const el=document.getElementById('ghSaveStatus');
+  if(el){el.textContent=msg;el.style.color=color||'var(--muted)';}
+}
+function updateGhBar() {
+  const cfg=ghConfig(), bar=document.getElementById('oiGhBar'), info=document.getElementById('oiGhInfo');
+  if(!bar||!info) return;
+  bar.style.display='flex';
+  if(cfg.token){info.textContent=`${cfg.user}/${cfg.repo} — Auto-save ON`;info.style.color='#00e5a0';}
+  else{info.textContent='Token nahi — ⚙ GITHUB OI click karo';info.style.color='#ff9f40';}
+}
+let oiAutoSave=true;
+function toggleOIAutoSave(){}
+async function updateOIStorageUI(){updateGhBar();}
+async function getGHFileList(symbol,month) {
+  const cfg=ghConfig();
+  if(!cfg.token) return [];
+  try {
+    const path=symbol&&month?`${symbol}/${month}`:symbol||'';
+    const r=await fetch(`https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/${path}?ref=${cfg.branch}`,
+      {headers:{Authorization:`token ${cfg.token}`,Accept:'application/vnd.github.v3+json'}});
+    if(!r.ok) return [];
+    const items=await r.json();
+    return Array.isArray(items)?items:[];
+  } catch(e){return [];}
+}
+function openGithubSettings() {
+  const cfg=ghConfig();
+  document.getElementById('ghSettingsOverlay')?.remove();
+  const ov=document.createElement('div');
+  ov.id='ghSettingsOverlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML=`<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid #6e40c960;border-radius:12px;width:min(440px,95vw);box-shadow:0 20px 60px rgba(0,0,0,.8);">
+    <div style="display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(110,64,201,.1);border-radius:12px 12px 0 0;">
+      <span style="font-family:var(--font-mono);font-size:12px;letter-spacing:1px;color:#a78bfa;">⚙ GITHUB OI AUTO-SAVE</span>
+      <div style="flex:1"></div>
+      <button onclick="document.getElementById('ghSettingsOverlay').remove()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:18px;">
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-bottom:14px;background:var(--panel3);padding:8px 12px;border-radius:6px;line-height:1.7;">
+        Har chain load par OI data auto-save hoga:<br>
+        <span style="color:#a78bfa;">{SYMBOL}/{YYYY-MM}/{SYMBOL}{YYYYMMDD}.json</span>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-bottom:4px;">Personal Access Token <span style="color:#ff3d6b;">*</span></div>
+        <input id="ghTokenInput" type="password" value="${cfg.token}" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+          style="width:100%;background:var(--panel3);border:1px solid var(--border2);color:var(--text);padding:7px 10px;border-radius:6px;font-family:var(--font-mono);font-size:11px;box-sizing:border-box;outline:none;">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-bottom:4px;">Username</div>
+          <input id="ghUserInput" type="text" value="${cfg.user}" style="width:100%;background:var(--panel3);border:1px solid var(--border2);color:var(--text);padding:6px 8px;border-radius:5px;font-family:var(--font-mono);font-size:11px;box-sizing:border-box;outline:none;">
+        </div>
+        <div>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-bottom:4px;">Repository</div>
+          <input id="ghRepoInput" type="text" value="${cfg.repo}" style="width:100%;background:var(--panel3);border:1px solid var(--border2);color:var(--text);padding:6px 8px;border-radius:5px;font-family:var(--font-mono);font-size:11px;box-sizing:border-box;outline:none;">
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-bottom:4px;">Branch</div>
+        <input id="ghBranchInput" type="text" value="${cfg.branch}" style="width:120px;background:var(--panel3);border:1px solid var(--border2);color:var(--text);padding:6px 8px;border-radius:5px;font-family:var(--font-mono);font-size:11px;outline:none;">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button onclick="ghSaveSettings()" style="background:#a78bfa;border:none;color:#000;padding:8px 20px;border-radius:6px;cursor:pointer;font-family:var(--font-mono);font-size:11px;font-weight:bold;">💾 SAVE</button>
+        <button onclick="ghTestConnection()" style="background:var(--panel3);border:1px solid var(--border2);color:var(--text);padding:8px 14px;border-radius:6px;cursor:pointer;font-family:var(--font-mono);font-size:10px;">🔗 TEST</button>
+        <button onclick="ghClearSettings()" style="background:none;border:1px solid #ff3d6b40;color:#ff3d6b;padding:8px 14px;border-radius:6px;cursor:pointer;font-family:var(--font-mono);font-size:10px;">✕ CLEAR</button>
+        <span id="ghTestResult" style="font-family:var(--font-mono);font-size:9px;flex:1;text-align:right;"></span>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function ghSaveSettings() {
+  const t=document.getElementById('ghTokenInput')?.value.trim();
+  const u=document.getElementById('ghUserInput')?.value.trim();
+  const r=document.getElementById('ghRepoInput')?.value.trim();
+  const b=document.getElementById('ghBranchInput')?.value.trim()||'main';
+  if(!t){alert('Token required!');return;}
+  ghSaveConfig(t,u,r,b);
+  document.getElementById('ghSettingsOverlay')?.remove();
+  toast('✓ GitHub settings saved — Auto-save ON',false);
+}
+function ghClearSettings() {
+  if(!confirm('GitHub settings clear karo?')) return;
+  ['gh_token','gh_user','gh_repo','gh_branch'].forEach(k=>localStorage.removeItem(k));
+  updateGhBar();
+  document.getElementById('ghSettingsOverlay')?.remove();
+}
+async function ghTestConnection() {
+  const t=document.getElementById('ghTokenInput')?.value.trim();
+  const u=document.getElementById('ghUserInput')?.value.trim();
+  const r=document.getElementById('ghRepoInput')?.value.trim();
+  const res=document.getElementById('ghTestResult');
+  if(!t||!u||!r){if(res)res.textContent='Fill all fields';return;}
+  if(res){res.textContent='Testing...';res.style.color='#ff9f40';}
+  try {
+    const resp=await fetch(`https://api.github.com/repos/${u}/${r}`,
+      {headers:{Authorization:`token ${t}`,Accept:'application/vnd.github.v3+json'}});
+    const d=await resp.json();
+    if(res){res.textContent=resp.ok?`✓ ${d.full_name}`:`✗ ${d.message}`;res.style.color=resp.ok?'#00e5a0':'#ff3d6b';}
+  } catch(e){if(res){res.textContent='✗ Network error';res.style.color='#ff3d6b';}}
+}
+async function showOIDataModal() {
+  const cfg=ghConfig();
+  document.getElementById('oiModalOverlay')?.remove();
+  const ov=document.createElement('div');
+  ov.id='oiModalOverlay';
+  ov.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML=`<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid #6e40c960;border-radius:12px;width:min(600px,95vw);max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.8);">
+    <div style="display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(110,64,201,.1);border-radius:12px 12px 0 0;position:sticky;top:0;">
+      <span style="font-family:var(--font-mono);font-size:12px;letter-spacing:1px;color:#a78bfa;">📂 OI HISTORY — GitHub</span>
+      <div style="flex:1"></div>
+      <button onclick="document.getElementById('oiModalOverlay').remove()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div id="oiModalBody" style="padding:14px 18px;">
+      ${!cfg.token?'<div style="color:#ff9f40;font-family:var(--font-mono);font-size:10px;padding:20px;text-align:center;">Token nahi — ⚙ GITHUB OI se pehle set karo.</div>'
+      :'<div style="color:var(--muted);font-family:var(--font-mono);font-size:10px;padding:20px;text-align:center;"><div>Loading...</div></div>'}
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  if(!cfg.token) return;
+  try {
+    const syms=['NIFTY','BANKNIFTY','SENSEX','FINNIFTY','MIDCPNIFTY'];
+    let rows='';
+    for(const s of syms){
+      const months=await getGHFileList(s);
+      const dirs=months.filter(m=>m.type==='dir');
+      for(const mDir of dirs){
+        const files=await getGHFileList(s,mDir.name);
+        const cnt=files.filter(f=>f.name.endsWith('.json')).length;
+        if(!cnt) continue;
+        rows+=`<tr>
+          <td style="padding:6px 10px;color:#a78bfa;">${s}</td>
+          <td style="padding:6px 10px;">${mDir.name}</td>
+          <td style="padding:6px 10px;">${cnt} files</td>
+          <td style="padding:6px 10px;"><a href="https://github.com/${cfg.user}/${cfg.repo}/tree/${cfg.branch}/${s}/${mDir.name}" target="_blank" style="color:#60a5fa;font-size:9px;">🔗 View</a></td>
+        </tr>`;
+      }
+    }
+    document.getElementById('oiModalBody').innerHTML=rows
+      ?`<div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-bottom:10px;">
+          <a href="https://github.com/${cfg.user}/${cfg.repo}" target="_blank" style="color:#a78bfa;">${cfg.user}/${cfg.repo}</a>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:10px;">
+          <thead><tr style="border-bottom:1px solid var(--border);">
+            <th style="padding:6px 10px;text-align:left;color:var(--muted);">SYMBOL</th>
+            <th style="padding:6px 10px;text-align:left;color:var(--muted);">MONTH</th>
+            <th style="padding:6px 10px;text-align:left;color:var(--muted);">FILES</th>
+            <th style="padding:6px 10px;text-align:left;color:var(--muted);">LINK</th>
+          </tr></thead><tbody>${rows}</tbody>
+        </table>`
+      :'<div style="color:var(--muted);font-family:var(--font-mono);font-size:10px;text-align:center;padding:20px;">Koi OI data nahi. Chain load hogi toh auto-save shuru hoga.</div>';
+  } catch(e){
+    document.getElementById('oiModalBody').innerHTML=`<div style="color:#ff3d6b;font-family:var(--font-mono);font-size:10px;padding:16px;">Error: ${e.message}</div>`;
+  }
 }
 
 // ══ BACKTEST EXPORT FUNCTIONS ════════════════════════════
@@ -4970,6 +5533,122 @@ function renderBtResults(trades, targetEl) {
 }
 
 // ── EMA Crossover backtest ────────────────────────────
+// ══ OI HISTORICAL BACKTEST LOADER ════════════════════════
+// GitHub se OI files load karke backtest mein use karo
+
+let btOiHistory = [];   // loaded OI snapshots sorted by date
+
+async function loadGHOIForBacktest() {
+  const cfg = ghConfig();
+  const infoEl = document.getElementById('btOiInfo');
+  if (!cfg.token) {
+    if (infoEl) infoEl.textContent = '⚠ Token nahi — ⚙ set karo';
+    toast('GitHub token nahi — ⚙ GITHUB OI se set karo', true);
+    return;
+  }
+
+  const instrKey = document.getElementById('symbolSel')?.value || '';
+  const symbol   = INSTRUMENTS[instrKey]?.label || 'NIFTY';
+  // symbol may be "NIFTY 50" → normalize
+  const sym      = symbol.replace(' 50','').replace(' ','');
+
+  if (infoEl) infoEl.textContent = `Loading ${sym}...`;
+
+  try {
+    // Get all months from GitHub
+    const months = await getGHFileList(sym);
+    const monthDirs = months.filter(m => m.type === 'dir').map(m => m.name).sort();
+
+    let allSnapshots = [];
+    for (const month of monthDirs) {
+      const files = await getGHFileList(sym, month);
+      const jsonFiles = files.filter(f => f.name.endsWith('.json'));
+
+      for (const file of jsonFiles) {
+        try {
+          const r = await fetch(file.download_url);
+          const snap = await r.json();
+          allSnapshots.push(snap);
+        } catch(e) { console.warn('Skip', file.name, e); }
+      }
+    }
+
+    // Sort by date
+    allSnapshots.sort((a,b) => a.date.localeCompare(b.date));
+    btOiHistory = allSnapshots;
+
+    if (infoEl) infoEl.textContent = `✓ ${allSnapshots.length} days (${sym})`;
+    toast(`✓ OI History loaded: ${allSnapshots.length} days`, false);
+
+    // Update backtest signal selector
+    updateBtSignalOptions();
+
+  } catch(e) {
+    if (infoEl) infoEl.textContent = `✗ ${e.message}`;
+    toast('OI load failed: ' + e.message, true);
+  }
+}
+
+// Get OI snapshot for a specific date
+function getOIForDate(dateStr) {
+  if (!btOiHistory.length) return null;
+  // Find exact date or closest before
+  const exact = btOiHistory.find(s => s.date === dateStr);
+  if (exact) return exact;
+  // Closest before
+  const before = btOiHistory.filter(s => s.date <= dateStr);
+  return before.length ? before[before.length-1] : btOiHistory[0];
+}
+
+// Calculate OI metrics from a snapshot
+function calcOIMetrics(snap) {
+  if (!snap || !snap.strikes) return null;
+  const strikes = snap.strikes;
+  let totalCall=0, totalPut=0, maxCallOI=0, maxPutOI=0;
+  let maxCallStrike=0, maxPutStrike=0;
+  let atmCallOI=0, atmPutOI=0;
+  let callBuild=0, putBuild=0;
+
+  const spot = snap.spot || 0;
+  const step = 50;
+  const atm  = Math.round(spot/step)*step;
+
+  strikes.forEach(s => {
+    totalCall += s.call_oi || 0;
+    totalPut  += s.put_oi  || 0;
+    const callChg = (s.call_oi||0) - (s.call_prev||0);
+    const putChg  = (s.put_oi||0)  - (s.put_prev||0);
+    if (callChg > 0) callBuild += callChg;
+    if (putChg  > 0) putBuild  += putChg;
+    if ((s.call_oi||0) > maxCallOI) { maxCallOI = s.call_oi||0; maxCallStrike = s.strike; }
+    if ((s.put_oi||0)  > maxPutOI)  { maxPutOI  = s.put_oi||0;  maxPutStrike  = s.strike; }
+    if (s.strike === atm) { atmCallOI = s.call_oi||0; atmPutOI = s.put_oi||0; }
+  });
+
+  const pcr       = totalCall > 0 ? totalPut/totalCall : 1;
+  const oiBias    = pcr > 1.2 ? 'BULLISH' : pcr < 0.8 ? 'BEARISH' : 'NEUTRAL';
+  return {
+    pcr, oiBias, totalCall, totalPut,
+    callWall: maxCallStrike, putWall: maxPutStrike,
+    atmCall: atmCallOI, atmPut: atmPutOI,
+    callBuild, putBuild,
+    isBullish: oiBias==='BULLISH',
+    isBearish: oiBias==='BEARISH',
+    spot, atm,
+  };
+}
+
+function updateBtSignalOptions() {
+  // If OI data loaded, enable OI-based signals in signal info
+  const info = document.getElementById('btOiInfo');
+  if (btOiHistory.length && info) {
+    const first = btOiHistory[0]?.date || '';
+    const last  = btOiHistory[btOiHistory.length-1]?.date || '';
+    info.textContent = `✓ ${btOiHistory.length} days (${first} → ${last})`;
+    info.style.color = '#00e5a0';
+  }
+}
+
 function runBacktest() {
   const candles  = emaAllCandles;
   if (candles.length < 10) { alert('Pehle chart load karo'); return; }
@@ -5019,10 +5698,24 @@ function runBacktest() {
     const avgATR     = recentATR.length ? recentATR.reduce((a,b)=>a+b)/recentATR.length : 0;
     const hasVol     = avgATR === 0 || (atr14[i]||0) >= avgATR * 0.7;
 
+    // OI confirmation (if historical OI data loaded)
+    let oiConfirmBull = true, oiConfirmBear = true;
+    if (btOiHistory.length) {
+      const dateStr = new Date(candles[i][0]).toISOString().slice(0,10);
+      const snap    = getOIForDate(dateStr);
+      const oiM     = snap ? calcOIMetrics(snap) : null;
+      if (oiM) {
+        // Bull: PCR > 0.9 (put writing = support) OR put build > call build
+        oiConfirmBull = oiM.pcr > 0.9 || oiM.putBuild > oiM.callBuild;
+        // Bear: PCR < 1.1 (call writing = resistance) OR call build > put build
+        oiConfirmBear = oiM.pcr < 1.1 || oiM.callBuild > oiM.putBuild;
+      }
+    }
+
     if (!inTrade) {
-      if (crossUp && bullCandle && rsiOk_bull && hasVol && (direction==='both'||direction==='ce'))
+      if (crossUp && bullCandle && rsiOk_bull && hasVol && oiConfirmBull && (direction==='both'||direction==='ce'))
         inTrade = { dir:'LONG',  entry:closes[i], entryBar:i, entryTime:fmtCandleLabel(candles[i][0],currentTf) };
-      else if (crossDown && bearCandle && rsiOk_bear && hasVol && (direction==='both'||direction==='pe'))
+      else if (crossDown && bearCandle && rsiOk_bear && hasVol && oiConfirmBear && (direction==='both'||direction==='pe'))
         inTrade = { dir:'SHORT', entry:closes[i], entryBar:i, entryTime:fmtCandleLabel(candles[i][0],currentTf) };
     } else {
       const oppCross = inTrade.dir==='LONG' ? crossDown : crossUp;
@@ -5548,6 +6241,11 @@ function onChainLoaded() {
   checkPriceAlerts(spot);
   runAlerts();
   renderHeatmap();
+
+  // OI auto-save (agar ON hai)
+  if (oiAutoSave) saveOISnapshot();
+  // Always update storage UI
+  updateOIStorageUI();
   populateCandleStrikes();
   buildStrategy(activeStrategy);
 
