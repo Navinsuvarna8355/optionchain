@@ -4107,25 +4107,30 @@ async function loadEmaChart() {
     if (!raw.length) throw new Error('Data nahi mila — token valid hai?');
     candles = needsAgg ? aggregateCandles(raw, aggMin) : raw;
 
-    // ── Live spot price inject — last candle close update ──
-    // Upstox intraday ka last candle 1 min old hota hai
-    // chainData se current spot price lekar last bar update karo
+    // ── Live candle inject ──────────────────────────────
+    // Upstox intraday last candle ~1-2 min old hota hai
+    // chainData se live spot lekar current minute ka live candle banao
     if (isMinuteTf && candles.length && chainData?.length) {
       const liveSpot = chainData[0]?.underlying_spot_price;
       if (liveSpot > 0) {
-        const last = candles[candles.length - 1];
-        // Only update if same candle minute (within 60s)
-        const candleTime = new Date(last[0]).getTime();
-        const nowTime    = Date.now();
-        if (nowTime - candleTime < 120000) { // within 2 min
+        const last     = candles[candles.length - 1];
+        const lastTs   = new Date(last[0]).getTime();
+        const nowTs    = Date.now();
+        const diffMs   = nowTs - lastTs;
+        const candleMs = (tf === '1minute' || needsAgg ? 1 : tf === '5minute' ? 5 : tf === '15minute' ? 15 : 30) * 60 * 1000;
+
+        if (diffMs < candleMs * 2) {
+          // Same candle — update close/high/low
           candles[candles.length - 1] = [
-            last[0],
-            last[1],                          // open
-            Math.max(last[2], liveSpot),       // high
-            Math.min(last[3], liveSpot),       // low
-            liveSpot,                          // close = live spot
-            last[5] || 0,
+            last[0], last[1],
+            Math.max(last[2], liveSpot),
+            Math.min(last[3], liveSpot),
+            liveSpot, last[5] || 0,
           ];
+        } else if (diffMs < candleMs * 5) {
+          // New candle — add live bar at current time
+          const newTs = new Date(Math.floor(nowTs / candleMs) * candleMs).toISOString();
+          candles.push([newTs, liveSpot, liveSpot, liveSpot, liveSpot, 0]);
         }
       }
     }
@@ -4872,8 +4877,9 @@ function resetEmaChart() { emaViewOffset = 0; renderEmaChart(); }
     });
     wrap.addEventListener('mousemove', e => {
       if (!isDragging || !emaAllCandles.length) return;
-      const diff = Math.round((dragStartX - e.clientX) * SENS);
-      const newOff = Math.max(0, Math.min(emaAllCandles.length - EMA_VIEW_BARS, dragStartOff + diff));
+      const diff   = Math.round((dragStartX - e.clientX) * SENS);
+      const maxOff = Math.max(0, emaAllCandles.length - Math.min(EMA_VIEW_BARS, 10));
+      const newOff = Math.max(0, Math.min(maxOff, dragStartOff + diff));
       if (newOff !== emaViewOffset) { emaViewOffset = newOff; renderEmaChart(); }
     });
     const endDrag = () => { isDragging = false; wrap.style.cursor = 'crosshair'; };
@@ -4910,8 +4916,9 @@ function resetEmaChart() { emaViewOffset = 0; renderEmaChart(); }
 
       if (e.touches.length === 1) {
         // Single finger = pan
-        const diff = Math.round((touchStartX - e.touches[0].clientX) * SENS);
-        const newOff = Math.max(0, Math.min(emaAllCandles.length - EMA_VIEW_BARS, touchStartOff + diff));
+        const diff   = Math.round((touchStartX - e.touches[0].clientX) * SENS);
+        const maxOff = Math.max(0, emaAllCandles.length - Math.min(EMA_VIEW_BARS, 10));
+        const newOff = Math.max(0, Math.min(maxOff, touchStartOff + diff));
         if (newOff !== emaViewOffset) { emaViewOffset = newOff; renderEmaChart(); }
 
       } else if (e.touches.length === 2) {
@@ -7697,79 +7704,83 @@ function toast(msg, isErr = false) {
 let strategyLogs = [];
 
 function checkAndLogSignals(spot) {
-  if (!chainData.length) return;
-  const instrKey = document.getElementById('symbolSel').value;
+  if (!chainData.length || !spot) return;
+  const instrKey = document.getElementById('symbolSel')?.value || '';
   const label    = INSTRUMENTS[instrKey]?.label || 'INDEX';
   const time     = new Date().toLocaleTimeString('en-IN');
   const step     = INSTRUMENTS[instrKey]?.step || 50;
   const atm      = Math.round(spot / step) * step;
+  const pcr      = document.getElementById('statPCR')?.textContent || '—';
+  const ctx      = `PCR:${pcr}`;
 
-  const dangerBadge = document.getElementById('bdbBadge')?.textContent || "";
-  const dangerScore = dangerBadge.match(/\d+/g)?.pop() || 0;
-  const pcr = document.getElementById('statPCR')?.textContent || 0;
-  const ctx = `[Risk:${dangerScore} | PCR:${pcr}]`;
-
-  // 1. EMA CHART ENGINE
-  if (emaAllCandles.length > 0) {
-    const opens  = emaAllCandles.map(c => c[1]), closes = emaAllCandles.map(c => c[4]);
-    const emaO = calcEMA(opens, 6), emaC = calcEMA(closes, 6);
-    const lastIdx = emaAllCandles.length - 1;
-    if (emaC[lastIdx] > emaO[lastIdx] && emaC[lastIdx-1] <= emaO[lastIdx-1]) {
-      registerSignalLog('EMA Chart', 'BULL', spot, time, label, `Crossover ${ctx}`);
-    } else if (emaC[lastIdx] < emaO[lastIdx] && emaC[lastIdx-1] >= emaO[lastIdx-1]) {
-      registerSignalLog('EMA Chart', 'BEAR', spot, time, label, `Crossunder ${ctx}`);
+  // 1. AI / OI ANALYSIS ENGINE
+  try {
+    const r = analyzeOptionChain();
+    if (r && r.dirClass && r.dirClass !== 'neutral') {
+      registerSignalLog('AI+OI', r.dirClass === 'bullish' ? 'BULL' : 'BEAR',
+        spot, time, label, `${r.direction} (${r.confidence}%) ${ctx}`);
     }
+  } catch(e) { console.log('MST AI err:', e); }
+
+  // 2. EMA CROSSOVER
+  if (emaAllCandles.length > 2) {
+    try {
+      const opens  = emaAllCandles.map(c => c[1]);
+      const closes = emaAllCandles.map(c => c[4]);
+      const emaO   = calcEMA(opens,  6);
+      const emaC   = calcEMA(closes, 6);
+      const n      = emaAllCandles.length - 1;
+      if (emaC[n] != null && emaO[n] != null && emaC[n-1] != null && emaO[n-1] != null) {
+        if (emaC[n-1] <= emaO[n-1] && emaC[n] > emaO[n])
+          registerSignalLog('EMA Cross', 'BULL', spot, time, label, `Bull Cross @ ${spot} ${ctx}`);
+        else if (emaC[n-1] >= emaO[n-1] && emaC[n] < emaO[n])
+          registerSignalLog('EMA Cross', 'BEAR', spot, time, label, `Bear Cross @ ${spot} ${ctx}`);
+      }
+    } catch(e) { console.log('MST EMA err:', e); }
   }
 
-  // 2. AI ENGINE
+  // 3. OI BUILD AT ATM (Call/Put writing)
   try {
-    const aiResult = analyzeOptionChain();
-    if (aiResult.confidence >= 40 && (aiResult.dirClass === 'bullish' || aiResult.dirClass === 'bearish')) {
-      registerSignalLog('AI Engine', aiResult.dirClass === 'bullish' ? 'BULL' : 'BEAR', spot, time, label, `${aiResult.direction} (conf:${aiResult.confidence}%) ${ctx}`);
+    const atmRow = chainData.find(d => d.strike_price === atm);
+    if (atmRow) {
+      const ce    = atmRow.call_options?.market_data || {};
+      const pe    = atmRow.put_options?.market_data  || {};
+      const ceChg = (ce.oi||0) - (ce.prev_oi||0);
+      const peChg = (pe.oi||0) - (pe.prev_oi||0);
+      if (peChg > 0)
+        registerSignalLog('OI Build', 'BULL', spot, time, label, `Put Build +${peChg.toLocaleString()} @ ATM ${atm}`);
+      if (ceChg > 0)
+        registerSignalLog('OI Build', 'BEAR', spot, time, label, `Call Build +${ceChg.toLocaleString()} @ ATM ${atm}`);
     }
   } catch(e) {}
 
-  // 3. SENTIMENT DASHBOARD
-  const trendText = document.getElementById('sentTrendVal')?.textContent || "";
-  if (trendText.includes('BULL')) {
-     registerSignalLog('Sentiment', 'BULL', spot, time, label, `Trend: ${trendText} ${ctx}`);
-  } else if (trendText.includes('BEAR')) {
-     registerSignalLog('Sentiment', 'BEAR', spot, time, label, `Trend: ${trendText} ${ctx}`);
-  }
+  // 4. SENTIMENT
+  try {
+    const trendEl = document.getElementById('sentTrendVal');
+    const trend   = trendEl?.textContent || '';
+    if (trend && trend !== '—') {
+      if (trend.toUpperCase().includes('BULL'))
+        registerSignalLog('Sentiment', 'BULL', spot, time, label, `${trend} ${ctx}`);
+      else if (trend.toUpperCase().includes('BEAR'))
+        registerSignalLog('Sentiment', 'BEAR', spot, time, label, `${trend} ${ctx}`);
+    }
+  } catch(e) {}
 
-  // 4. OPTION CHAIN TABLE
-  const checkStrikes = [atm - step, atm, atm + step];
-  checkStrikes.forEach(s => {
-    const row = chainData.find(d => d.strike_price === s);
-    if (!row) return;
-    const ce = row.call_options?.market_data || {}, pe = row.put_options?.market_data || {};
-    const ceChg = (ce.oi || 0) - (ce.prev_oi || 0), peChg = (pe.oi || 0) - (pe.prev_oi || 0);
-    const ceLTP = ce.ltp || 0, peLTP = pe.ltp || 0;
-    const ceClose = ce.close_price || ceLTP, peClose = pe.close_price || peLTP;
-    
-    if (s <= atm && peChg > 5000 && peLTP <= peClose * 1.03) {
-      registerSignalLog('Opt Chain', 'BULL', spot, time, label, `Put Writing @ ${s} ${ctx}`);
-    }
-    if (s >= atm && ceChg > 5000 && ceLTP <= ceClose * 1.03) {
-      registerSignalLog('Opt Chain', 'BEAR', spot, time, label, `Call Writing @ ${s} ${ctx}`);
-    }
-  });
-
-  // 5. UNUSUAL ACTIVITY (Spikes)
-  chainData.forEach(d => {
-    const ce = d.call_options?.market_data || {}, pe = d.put_options?.market_data || {};
-    const s = d.strike_price;
-    const cPrev = ce.prev_oi || 0, pPrev = pe.prev_oi || 0;
-    const ceChgPct = cPrev > 0 ? ((ce.oi - cPrev) / cPrev * 100) : 0;
-    const peChgPct = pPrev > 0 ? ((pe.oi - pPrev) / pPrev * 100) : 0;
-    
-    if (ceChgPct > 100 && ce.oi > 50000) {
-      registerSignalLog('Alerts', 'BEAR', spot, time, label, `CE OI Surge @ ${s} ${ctx}`);
-    }
-    if (peChgPct > 100 && pe.oi > 50000) {
-      registerSignalLog('Alerts', 'BULL', spot, time, label, `PE OI Surge @ ${s} ${ctx}`);
-    }
-  });
+  // 5. OI SPIKE ALERTS
+  try {
+    chainData.forEach(d => {
+      const ce   = d.call_options?.market_data || {};
+      const pe   = d.put_options?.market_data  || {};
+      const s    = d.strike_price;
+      if (Math.abs(s - spot) > step * 8) return; // only near ATM
+      const cChg = (ce.oi||0) - (ce.prev_oi||0);
+      const pChg = (pe.oi||0) - (pe.prev_oi||0);
+      if (cChg > 100000)
+        registerSignalLog('OI Spike', 'BEAR', spot, time, label, `CE Spike +${(cChg/1000).toFixed(0)}K @ ${s}`);
+      if (pChg > 100000)
+        registerSignalLog('OI Spike', 'BULL', spot, time, label, `PE Spike +${(pChg/1000).toFixed(0)}K @ ${s}`);
+    });
+  } catch(e) {}
 }
 
 function registerSignalLog(source, type, entrySpot, time, symbol, notes) {
