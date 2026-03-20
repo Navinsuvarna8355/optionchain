@@ -7917,67 +7917,88 @@ function checkAndLogSignals(spot) {
 }
 
 function registerSignalLog(source, type, entrySpot, time, symbol, notes) {
-  const isDuplicate = strategyLogs.some(log => 
-    log.source === source && log.type === type && log.symbol === symbol &&
-    (new Date() - log.timestampObj) < 5 * 60 * 1000   // 5 min cooldown
-  );
+  // Cooldown per source — OI Build/Spike = 30min, others = 5min
+  const cooldownMs = (source === 'OI Build' || source === 'OI Spike') 
+    ? 30 * 60 * 1000   // 30 min — OI build changes slowly
+    : 5  * 60 * 1000;  // 5 min
 
+  const isDuplicate = strategyLogs.some(log =>
+    log.source === source && log.type === type && log.symbol === symbol &&
+    (new Date() - new Date(log.timestampObj)) < cooldownMs
+  );
   if (isDuplicate) return;
 
   strategyLogs.push({
-    id: Date.now(),
-    timestampObj: new Date(),
+    id        : Date.now(),
+    timestampObj: new Date().toISOString(),
     time,
     source,
     type,
     symbol,
     entrySpot,
-    currentSpot: entrySpot,
+    currentSpot : entrySpot,
     maxFavorable: 0,
-    maxAdverse: 0,
+    maxAdverse  : 0,
     notes
   });
-  
-  toast(`🧪 Tester: New ${type} signal tracked from ${source}`, false);
+
+  toast(`🧪 ${type} — ${source}: ${notes.slice(0,40)}`, false);
   renderSignalLogs();
 }
 
 function updateSignalLogs(currentSpot) {
-  if (!strategyLogs.length) return;
+  if (!strategyLogs.length || !currentSpot) return;
+  const now = new Date();
   strategyLogs.forEach(log => {
+    // Only track for 2 hours after entry
+    const ageMs = now - new Date(log.timestampObj);
+    if (ageMs > 2 * 60 * 60 * 1000) return;
+
     log.currentSpot = currentSpot;
     const move = currentSpot - log.entrySpot;
-    if (log.type === 'BULL') {
-      if (move > log.maxFavorable) log.maxFavorable = move;
-      if (move < log.maxAdverse) log.maxAdverse = move;
-    } else if (log.type === 'BEAR') {
-      if (-move > log.maxFavorable) log.maxFavorable = -move;
-      if (-move < log.maxAdverse) log.maxAdverse = -move;
-    }
+    const favorable = log.type === 'BULL' ? move : -move;
+    const adverse   = log.type === 'BULL' ? move : -move;
+
+    if (favorable > log.maxFavorable) log.maxFavorable = favorable;
+    if (adverse   < log.maxAdverse)   log.maxAdverse   = adverse;
   });
   renderSignalLogs();
 }
 
 function renderSignalLogs() {
   const tbody = document.getElementById('logTableBody');
-  if (!strategyLogs.length || !tbody) return;
-  const sorted = [...strategyLogs].sort((a,b) => b.id - a.id);
+  if (!tbody) return;
+
+  // Update waiting message
+  const waiting = document.getElementById('signalWaiting');
+
+  if (!strategyLogs.length) {
+    if (waiting) waiting.style.display = '';
+    tbody.innerHTML = '';
+    return;
+  }
+  if (waiting) waiting.style.display = 'none';
+
+  const sorted = [...strategyLogs].sort((a,b) => b.id - a.id).slice(0, 50);
   tbody.innerHTML = sorted.map(log => {
-    const typeClass = log.type === 'BULL' ? 'log-bull' : 'log-bear';
-    const favColor  = log.maxFavorable > 10 ? 'var(--green)' : 'var(--text)';
-    const advColor  = log.maxAdverse < -20 ? 'var(--red)' : 'var(--text)';
-    const currMove  = log.type === 'BULL' ? (log.currentSpot - log.entrySpot) : (log.entrySpot - log.currentSpot);
-    const currColor = currMove > 0 ? 'var(--green)' : currMove < 0 ? 'var(--red)' : 'var(--text)';
-    
-    return `<tr class="log-row">
-      <td>${log.time}</td>
-      <td style="color:var(--purple);">${log.source}</td>
-      <td class="${typeClass}">${log.type}</td>
-      <td>${log.entrySpot.toFixed(1)}</td>
-      <td style="color:${currColor}">${log.currentSpot.toFixed(1)} (${currMove>0?'+':''}${currMove.toFixed(1)})</td>
-      <td style="color:${favColor}">+${log.maxFavorable.toFixed(1)}</td>
-      <td style="color:${advColor}">${log.maxAdverse.toFixed(1)}</td>
-      <td style="color:var(--muted);font-size:9px;">${log.notes}</td>
+    const isBull    = log.type === 'BULL';
+    const typeColor = isBull ? '#00e5a0' : '#ff3d6b';
+    const typeLabel = isBull ? '▲ BULL' : '▼ BEAR';
+    const currMove  = isBull ? (log.currentSpot - log.entrySpot) : (log.entrySpot - log.currentSpot);
+    const currColor = currMove > 0 ? '#00e5a0' : currMove < 0 ? '#ff3d6b' : 'var(--muted)';
+    const favColor  = log.maxFavorable > 5  ? '#00e5a0' : 'var(--muted)';
+    const advColor  = log.maxAdverse   < -5 ? '#ff3d6b' : 'var(--muted)';
+    const pnlStr    = `${currMove >= 0 ? '+' : ''}${currMove.toFixed(1)}`;
+
+    return `<tr style="border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:10px;">
+      <td style="padding:5px 8px;color:var(--muted);white-space:nowrap;">${log.time}</td>
+      <td style="padding:5px 8px;color:#a78bfa;">${log.source}</td>
+      <td style="padding:5px 8px;color:${typeColor};font-weight:bold;">${typeLabel}</td>
+      <td style="padding:5px 8px;">${log.entrySpot.toFixed(1)}</td>
+      <td style="padding:5px 8px;color:${currColor};font-weight:bold;">${log.currentSpot.toFixed(1)} <span style="font-size:9px;">(${pnlStr})</span></td>
+      <td style="padding:5px 8px;color:${favColor};">+${log.maxFavorable.toFixed(1)}</td>
+      <td style="padding:5px 8px;color:${advColor};">${log.maxAdverse.toFixed(1)}</td>
+      <td style="padding:5px 8px;color:var(--muted);font-size:9px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${log.notes}">${log.notes}</td>
     </tr>`;
   }).join('');
 }
@@ -7991,22 +8012,7 @@ function exportSignalLogs() {
 }
 // [duplicate checkAndLogSignals removed]
 
-// --- 2. PROFIT/LOSS TRACKING ENGINE ---
-function updateSignalLogs(currentSpot) {
-    if(!signalLogs) return;
-    signalLogs.forEach(log => {
-        log.currentSpot = currentSpot;
-        const diff = currentSpot - log.entrySpot;
-        if (log.type === "BULL") {
-            if (diff > log.maxFavorable) log.maxFavorable = diff;
-            if (diff < log.maxAdverse) log.maxAdverse = diff;
-        } else {
-            if (-diff > log.maxFavorable) log.maxFavorable = -diff;
-            if (-diff < log.maxAdverse) log.maxAdverse = -diff;
-        }
-    });
-    if (typeof renderSignalLogs === 'function') renderSignalLogs();
-}
+// [old updateSignalLogs removed]
 </script>
 
 </body>
