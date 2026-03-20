@@ -4355,9 +4355,9 @@ function buildIndicatorDatasets(candles, viewStart, viewEnd) {
     const atmPePrev= atmRow?.put_options?.market_data?.close_price  || atmPeLtp;
     const ceLtpChg = atmCePrev > 0 ? ((atmCeLtp - atmCePrev) / atmCePrev * 100) : 0;
     const peLtpChg = atmPePrev > 0 ? ((atmPeLtp - atmPePrev) / atmPePrev * 100) : 0;
-    // LTP rising = option buyers in control
-    const ceLtpRising = ceLtpChg > 0.5;   // CE LTP > 0.5% upar
-    const peLtpRising = peLtpChg > 0.5;   // PE LTP > 0.5% upar
+    // LTP rising = option buyers active (0.1% threshold — not too strict)
+    const ceLtpRising = ceLtpChg > 0.1;   // CE LTP > 0.1% upar
+    const peLtpRising = peLtpChg > 0.1;   // PE LTP > 0.1% upar
 
     liveOI = {
       pcr:livePCR, callWall:mCallS, putWall:mPutS,
@@ -4418,38 +4418,32 @@ function buildIndicatorDatasets(candles, viewStart, viewEnd) {
       const isToday = new Date(candles[i][0]).toDateString() === new Date().toDateString();
 
       if (liveOI && isToday) {
-        // OI direction using build/unwind (modern approach)
-        // Call build at ATM/nearby = bears aggressive = bearish
-        // Put build at ATM/nearby = bulls aggressive = bullish
-        const oiBull = liveOI.putBuild > liveOI.callBuild && liveOI.pcr >= 0.8;
-        const oiBear = liveOI.callBuild > liveOI.putBuild && liveOI.pcr <= 1.2;
+        // OI direction
+        const oiBull = liveOI.putBuild > liveOI.callBuild || liveOI.pcr > 1.0;
+        const oiBear = liveOI.callBuild > liveOI.putBuild || liveOI.pcr < 1.0;
 
-        // Confirm: OI aligned OR strong 3-bar momentum
-        const confirmBull = (oiBull && priceUpTrend)   || (!oiBear && last3Bull && priceUpTrend);
-        const confirmBear = (oiBear && priceDownTrend) || (!oiBull && last3Bear && priceDownTrend);
-
-        // BUY CE: bull cross + bull confirm + CE LTP rising
-        if (bullCross && bullCandle && confirmBull && liveOI.ceLtpRising) {
+        // BUY CE: bull cross + OI bullish + CE LTP rising
+        // (removed bullCandle & priceUpTrend — too strict for 1min)
+        if (bullCross && oiBull && liveOI.ceLtpRising) {
           signalBuyCE[i] = closes[i];
         }
-        // BUY PE: bear cross + bear confirm + PE LTP rising
-        else if (bearCross && bearCandle && confirmBear && liveOI.peLtpRising) {
+        // BUY PE: bear cross + OI bearish + PE LTP rising
+        else if (bearCross && oiBear && liveOI.peLtpRising) {
           signalBuyPE[i] = closes[i];
         }
-        // SELL CE: at call wall, bear cross, bears in control
-        else if (bearCross && liveOI.callWallStrong && oiBear && bearCandle && priceDownTrend) {
+        // SELL CE: bear cross + call wall strong + OI bearish
+        else if (bearCross && liveOI.callWallStrong && liveOI.callBuild > liveOI.putBuild) {
           signalSellCE[i] = closes[i];
         }
-        // SELL PE: at put wall, bull cross, bulls in control
-        else if (bullCross && liveOI.putWallStrong && oiBull && bullCandle && priceUpTrend) {
+        // SELL PE: bull cross + put wall strong + OI bullish
+        else if (bullCross && liveOI.putWallStrong && liveOI.putBuild > liveOI.callBuild) {
           signalSellPE[i] = closes[i];
         }
       } else if (!liveOI) {
-        // No chain data — pure EMA + price action signals
-        if (bullCross && bullCandle && priceUpTrend)   signalBuyCE[i] = closes[i];
-        if (bearCross && bearCandle && priceDownTrend) signalBuyPE[i] = closes[i];
+        // No chain data — pure EMA signals
+        if (bullCross) signalBuyCE[i] = closes[i];
+        if (bearCross) signalBuyPE[i] = closes[i];
       }
-      // Conflict — no signal
     }
   }
 
