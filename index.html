@@ -494,7 +494,7 @@ body::after {
 }
 .legend-item { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
 .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
-.chart-canvas-wrap { position: relative; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.chart-canvas-wrap { position: relative; width: 100%; height: 320px; }
 .chart-canvas-wrap canvas { min-width: 320px; width: 100% !important; }
 canvas.oi-chart { width: 100% !important; }
 
@@ -1377,7 +1377,7 @@ tr.atm-row td.strike-cell { color:var(--accent); }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/3.0.1/chartjs-plugin-annotation.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
 </head>
 <body>
 <div class="app">
@@ -1791,7 +1791,7 @@ tr.atm-row td.strike-cell { color:var(--accent); }
         <div class="legend-item"><div class="legend-dot" style="background:#ff3d6b;border-radius:50%"></div>SELL Signal</div>
       </div>
       <div class="chart-canvas-wrap">
-        <canvas id="oiChartCanvas" style="width:100%;max-width:100%;height:280px;"></canvas>
+        <canvas id="oiChartCanvas" height="320" style="width:100%;height:320px;"></canvas>
       </div>
       <div class="chart-signal-legend" id="signalLegend"></div>
     </div>
@@ -3200,8 +3200,6 @@ function switchChart(type) {
   document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
   const ids = { oi:'tabOI', vol:'tabVol', chng:'tabChng', ltp:'tabLTP' };
   document.getElementById(ids[type])?.classList.add('active');
-  // Rebuild if cache missing
-  if (!chartDataCache && chainData.length) chartDataCache = buildChartData();
   if (chartDataCache) renderChart(chartDataCache, type);
 }
 
@@ -3275,6 +3273,8 @@ function renderChart(data, type = 'oi') {
 
   const ctx = document.getElementById('oiChartCanvas').getContext('2d');
   if (oiChart) { oiChart.destroy(); oiChart = null; }
+  // Datalabels plugin OI chart mein nahi chahiye - unregister karo
+  try { if (window.ChartDataLabels) Chart.unregister(ChartDataLabels); } catch(e) {}
 
   const labels   = data.strikes.map(s => s.toLocaleString('en-IN'));
   const atmIdx   = data.strikes.indexOf(data.atm);
@@ -3289,6 +3289,13 @@ function renderChart(data, type = 'oi') {
     ds1 = data.callChng; ds2 = data.putChng; yLabel = 'OI Change';
   } else {
     ds1 = data.callLTP; ds2 = data.putLTP; yLabel = 'LTP (₹)';
+  }
+
+  // If all data is zero, show message
+  const allZero = [...ds1, ...ds2].every(v => !v || v === 0);
+  if (allZero && type !== 'oi') {
+    document.getElementById('signalLegend').innerHTML = 
+      '<span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">⚠ ' + yLabel + ' data available nahi — API se nahi aaya</span>';
   }
 
   // Build signal annotations
@@ -3382,6 +3389,7 @@ function renderChart(data, type = 'oi') {
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
+        datalabels: { display: false },
         legend: {
           display: false
         },
@@ -3453,7 +3461,6 @@ function renderChart(data, type = 'oi') {
   ).join('');
   document.getElementById('signalLegend').innerHTML = legendHtml || '<span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">No strong signals at current strikes</span>';
 }
-
 
 
 /* ══════════════════════════════════════════════════════
