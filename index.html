@@ -4153,6 +4153,11 @@ async function loadEmaChart() {
     btWarn.style.display = isIntraday ? 'inline' : 'none';
   }
   renderEmaChart();
+
+  // Start live candle tick for intraday TFs
+  const _isIntra = ['1minute','5minute','15minute','30minute'].includes(tf);
+  if (_isIntra) startLiveTick();
+  else stopLiveTick();
 }
 
 // ── TradingView crosshair plugin ─────────────────────
@@ -4182,6 +4187,61 @@ const tvCrosshairPlugin = {
     ctx.fillStyle = '#1e3050'; ctx.fillRect(x - tw/2 - 6, bottom + 2, tw + 12, 20);
     ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
     ctx.fillText(xLabel, x, bottom + 14);
+    ctx.restore();
+  }
+};
+
+// ── Custom Candle Drawing Plugin ─────────────────────
+// Chart.js bar chart ke upar canvas pe direct candles draw karta hai
+// Wick aur Body ek saath — bilkul broker app jaisa
+const candleDrawPlugin = {
+  id: 'candleDraw',
+  afterDatasetsDraw(chart) {
+    const view = window._candleView;
+    if (!view || !view.length) return;
+    const ctx    = chart.ctx;
+    const xScale = chart.scales.x;
+    const yScale = chart.scales.y;
+    if (!xScale || !yScale) return;
+
+    const BULL = 'rgba(0,229,160,.95)';
+    const BEAR = 'rgba(255,61,107,.95)';
+
+    // Calculate candle width from bar spacing
+    const totalBars = view.length;
+    const chartW    = chart.chartArea.right - chart.chartArea.left;
+    const barW      = Math.max(2, (chartW / totalBars) * 0.7);  // 70% of slot width
+    const wickW     = Math.max(1, barW * 0.08);                 // wick = 8% of bar width
+
+    ctx.save();
+    view.forEach((c, i) => {
+      const [, open, high, low, close] = c;
+      const isBull = close >= open;
+      const color  = isBull ? BULL : BEAR;
+
+      // Get pixel positions
+      const xMid  = xScale.getPixelForValue(i);
+      if (xMid === undefined) return;
+      const yHigh  = yScale.getPixelForValue(high);
+      const yLow   = yScale.getPixelForValue(low);
+      const yOpen  = yScale.getPixelForValue(open);
+      const yClose = yScale.getPixelForValue(close);
+
+      const bodyTop = Math.min(yOpen, yClose);
+      const bodyH   = Math.max(1, Math.abs(yClose - yOpen));
+
+      // Draw wick (thin line high to low)
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = wickW;
+      ctx.moveTo(xMid, yHigh);
+      ctx.lineTo(xMid, yLow);
+      ctx.stroke();
+
+      // Draw body (filled rect)
+      ctx.fillStyle = color;
+      ctx.fillRect(xMid - barW / 2, bodyTop, barW, bodyH);
+    });
     ctx.restore();
   }
 };
@@ -4714,17 +4774,15 @@ function renderEmaChart() {
   const yMin = Math.min(...visL), yMax = Math.max(...visH);
   const yPad = (yMax - yMin) * 0.1;
 
-  // Candle datasets first
-  const bullColor='rgba(0,229,160,.9)', bearColor='rgba(255,61,107,.9)';
+  // Store view for custom candle plugin
+  window._candleView = view;
+
+  // Only signal/indicator datasets (no Wick/Body — drawn by plugin)
   const allDatasets = [
-    { label:'Wick', data:view.map(c=>[c[3],c[2]]),
-      backgroundColor:view.map(c=>c[4]>=c[1]?bullColor:bearColor),
-      borderColor:view.map(c=>c[4]>=c[1]?bullColor:bearColor),
-      borderWidth:0, barPercentage:0.08, categoryPercentage:0.75, order:3 },
-    { label:'Body', data:view.map(c=>[c[1],c[4]]),
-      backgroundColor:view.map(c=>c[4]>=c[1]?bullColor:bearColor),
-      borderColor:view.map(c=>c[4]>=c[1]?bullColor:bearColor),
-      borderWidth:0, barPercentage:0.65, categoryPercentage:0.75, order:2 },
+    // Invisible dummy bar to set x-axis scale
+    { label:'_dummy', data:view.map(c=>c[4]),
+      backgroundColor:'transparent', borderColor:'transparent',
+      borderWidth:0, barPercentage:0, categoryPercentage:0, order:99 },
     ...datasets
   ];
 
@@ -4738,6 +4796,7 @@ function renderEmaChart() {
   const ctx = canvas.getContext('2d');
   if (candleChart) { candleChart.destroy(); candleChart = null; }
   if (window.ChartDataLabels) Chart.register(ChartDataLabels);
+  Chart.register(candleDrawPlugin);
   Chart.register(tvCrosshairPlugin);
   Chart.register(lastPricePlugin);
 
@@ -4756,7 +4815,7 @@ function renderEmaChart() {
           titleColor:'#00c9ff', bodyColor:'#ddeeff',
           titleFont:{ family:'Space Mono', size:10 }, bodyFont:{ family:'Space Mono', size:9 },
           intersect:false, mode:'index',
-          filter: item => item.dataset.label==='Body',
+          filter: item => item.dataset.label === '_dummy',
           callbacks:{
             title:()=>'',
             label(item) {
@@ -7580,14 +7639,94 @@ function updateFilterBadge() {
 }
 
 /* ══════════════════════════ AUTO REFRESH ══ */
+// ── Live candle ticker ───────────────────────────────
+let liveTickTimer = null;
+
+function updateLiveCandle() {
+  // Agar chart mein candles nahi hain ya intraday TF nahi hai — skip
+  if (!emaAllCandles.length) return;
+  if (!['1minute','5minute','15minute','30minute'].includes(currentTf)) return;
+
+  // Live spot — chain se ya LTP element se
+  let liveSpot = 0;
+  if (chainData?.length) {
+    liveSpot = chainData[0]?.underlying_spot_price || 0;
+  }
+  if (!liveSpot) {
+    const ltpEl = document.getElementById('spotPrice') || document.getElementById('statSpot');
+    liveSpot = parseFloat(ltpEl?.textContent?.replace(/,/g,'')) || 0;
+  }
+  if (!liveSpot) return;
+
+  const tfMs = {
+    '1minute':  60000,
+    '5minute':  300000,
+    '15minute': 900000,
+    '30minute': 1800000,
+  }[currentTf] || 60000;
+
+  const now     = Date.now();
+  const last    = emaAllCandles[emaAllCandles.length - 1];
+  const lastTs  = new Date(last[0]).getTime();
+  const diff    = now - lastTs;
+
+  if (diff < tfMs * 1.5) {
+    // ── Update existing last candle live ──────────────
+    emaAllCandles[emaAllCandles.length - 1] = [
+      last[0],
+      last[1],                          // open stays
+      Math.max(last[2], liveSpot),      // high = max
+      Math.min(last[3], liveSpot),      // low  = min
+      liveSpot,                         // close = live price
+      last[5] || 0,
+    ];
+  } else if (diff < tfMs * 4) {
+    // ── New candle started — add live bar ─────────────
+    const newTs = new Date(Math.floor(now / tfMs) * tfMs).toISOString();
+    // Check if already exists
+    const exists = emaAllCandles[emaAllCandles.length - 1][0] === newTs;
+    if (!exists) {
+      emaAllCandles.push([newTs, liveSpot, liveSpot, liveSpot, liveSpot, 0]);
+    } else {
+      // Update the new candle
+      const nc = emaAllCandles[emaAllCandles.length - 1];
+      emaAllCandles[emaAllCandles.length - 1] = [
+        nc[0], nc[1],
+        Math.max(nc[2], liveSpot),
+        Math.min(nc[3], liveSpot),
+        liveSpot, nc[5] || 0,
+      ];
+    }
+  }
+
+  // Re-render chart (only if not already rendering)
+  if (!window._chartRendering) {
+    window._chartRendering = true;
+    renderEmaChart();
+    window._chartRendering = false;
+  }
+}
+
+function startLiveTick() {
+  if (liveTickTimer) clearInterval(liveTickTimer);
+  // Update every 3 seconds for smooth live candle
+  liveTickTimer = setInterval(updateLiveCandle, 3000);
+}
+
+function stopLiveTick() {
+  if (liveTickTimer) { clearInterval(liveTickTimer); liveTickTimer = null; }
+}
+
 function toggleAuto() {
   const btn = document.getElementById('autoBtn');
   if (autoTimer) {
     clearInterval(autoTimer); autoTimer = null;
+    stopLiveTick();
     btn.textContent = 'AUTO: OFF'; btn.className = 'btn btn-ghost btn-sm';
   } else {
     fetchChain();
     autoTimer = setInterval(fetchChain, 30000);
+    startLiveTick();
     btn.textContent = 'AUTO: ON (30s)'; btn.className = 'btn btn-primary btn-sm';
   }
 }
