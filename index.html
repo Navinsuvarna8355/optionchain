@@ -4107,6 +4107,29 @@ async function loadEmaChart() {
     if (!raw.length) throw new Error('Data nahi mila — token valid hai?');
     candles = needsAgg ? aggregateCandles(raw, aggMin) : raw;
 
+    // ── Live spot price inject — last candle close update ──
+    // Upstox intraday ka last candle 1 min old hota hai
+    // chainData se current spot price lekar last bar update karo
+    if (isMinuteTf && candles.length && chainData?.length) {
+      const liveSpot = chainData[0]?.underlying_spot_price;
+      if (liveSpot > 0) {
+        const last = candles[candles.length - 1];
+        // Only update if same candle minute (within 60s)
+        const candleTime = new Date(last[0]).getTime();
+        const nowTime    = Date.now();
+        if (nowTime - candleTime < 120000) { // within 2 min
+          candles[candles.length - 1] = [
+            last[0],
+            last[1],                          // open
+            Math.max(last[2], liveSpot),       // high
+            Math.min(last[3], liveSpot),       // low
+            liveSpot,                          // close = live spot
+            last[5] || 0,
+          ];
+        }
+      }
+    }
+
   } catch(e) {
     if (signalBox) signalBox.innerHTML = `<span style="color:var(--red);">⚠ ${e.message}</span>`;
     if (subLabel) subLabel.textContent = `${label} · Error`;
@@ -4687,20 +4710,27 @@ function renderEmaChart() {
   const yPad = (yMax - yMin) * 0.1;
 
   // Candle datasets first
-  const bullColor='rgba(0,229,160,.85)', bearColor='rgba(255,61,107,.85)';
+  const bullColor='rgba(0,229,160,.9)', bearColor='rgba(255,61,107,.9)';
   const allDatasets = [
     { label:'Wick', data:view.map(c=>[c[3],c[2]]),
-      backgroundColor:view.map(c=>c[4]>=c[1]?'rgba(0,229,160,.5)':'rgba(255,61,107,.5)'),
+      backgroundColor:view.map(c=>c[4]>=c[1]?bullColor:bearColor),
       borderColor:view.map(c=>c[4]>=c[1]?bullColor:bearColor),
-      borderWidth:1, barPercentage:0.06, categoryPercentage:1, order:3 },
+      borderWidth:0, barPercentage:0.08, categoryPercentage:0.75, order:3 },
     { label:'Body', data:view.map(c=>[c[1],c[4]]),
       backgroundColor:view.map(c=>c[4]>=c[1]?bullColor:bearColor),
-      borderColor:view.map(c=>c[4]>=c[1]?'rgba(0,229,160,1)':'rgba(255,61,107,1)'),
-      borderWidth:1, barPercentage:0.6, categoryPercentage:0.7, order:2 },
+      borderColor:view.map(c=>c[4]>=c[1]?bullColor:bearColor),
+      borderWidth:0, barPercentage:0.65, categoryPercentage:0.75, order:2 },
     ...datasets
   ];
 
-  const ctx = document.getElementById('candleCanvas').getContext('2d');
+  const canvas = document.getElementById('candleCanvas');
+  if (!canvas) return;
+  // Ensure canvas has dimensions (fullscreen fix)
+  if (canvas.offsetWidth === 0) {
+    canvas.style.width = '100%';
+    canvas.style.display = 'block';
+  }
+  const ctx = canvas.getContext('2d');
   if (candleChart) { candleChart.destroy(); candleChart = null; }
   if (window.ChartDataLabels) Chart.register(ChartDataLabels);
   Chart.register(tvCrosshairPlugin);
@@ -4787,9 +4817,15 @@ function toggleChartFullscreen() {
     window.scrollTo(0, 0);
   }
   setTimeout(() => {
+    // Force canvas resize then render
+    const canvas = document.getElementById('candleCanvas');
+    if (canvas) {
+      canvas.style.width = '100%';
+      canvas.style.height = '';
+    }
     renderEmaChart();
     if (window._attachChartDrag) window._attachChartDrag();
-  }, 100);
+  }, 150);
 }
 
 // Escape key exits fullscreen
