@@ -1637,6 +1637,14 @@ tr.atm-row td.strike-cell { color:var(--accent); }
         <div id="marketVerdict" style="font-family:var(--font-disp); font-size:32px; letter-spacing:2px;">—</div>
     </div>
 </div>
+<div id="greeksSignalBox" style="margin: 10px 16px; background: linear-gradient(135deg, #111c2e 0%, #070b12 100%); border: 1px solid var(--purple); border-radius: 12px; padding: 18px; box-shadow: 0 0 15px rgba(176,107,255,0.1);">
+    <div style="font-family: 'Bebas Neue'; font-size: 20px; color: var(--purple); letter-spacing: 2px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px;">
+        <span>🎯</span> PRO BUYING ADVISOR (DELTA & GAMMA)
+    </div>
+    <div id="greeksAdvice" style="font-family: var(--font-mono); font-size: 12px; color: var(--text); line-height: 1.8;">
+        Waiting for live chain data...
+    </div>
+</div>
 
   <div class="trade-setup-wrap">
     <div class="trade-setup-header" onclick="toggleTradeSetup()">
@@ -6803,12 +6811,9 @@ function logNotif(msg) {
 ══════════════════════════════════════════════════════ */
 function onChainLoaded() {
     const spot = (chainData && chainData[0]) ? chainData[0].underlying_spot_price : 0;
-    if (spot <= 0) {
-        console.log("Waiting for spot price...");
-        return;
-    }
+    if (spot <= 0) return;
 
-    // 1. CALCULATION ENGINES (Sirf ek-ek baar call karna hai)
+    // Saare logic ko logically EK baar call karein
     updateOptionsBattle(); 
     calcBuyingDanger();
     updateSentimentDash();
@@ -6818,7 +6823,7 @@ function onChainLoaded() {
     runAlerts();
     renderHeatmap();
 
-    // 2. STORAGE & CHARTS
+    // Storage aur Charts
     if (oiAutoSave) saveOISnapshot();
     updateOIStorageUI();
     populateCandleStrikes();
@@ -6827,7 +6832,7 @@ function onChainLoaded() {
     updatePriceActionStrikes();
     renderPriceAction();
 
-    // 3. SIGNAL TESTER LOGIC
+    // Signal Tester Triggers
     if (typeof checkAndLogSignals === 'function') checkAndLogSignals(spot);
     if (typeof updateSignalLogs === 'function') updateSignalLogs(spot);
 }
@@ -8256,86 +8261,132 @@ function exportSignalLogs() {
 /* ══════════════════════════════════════════════════════
    OPTIONS BATTLEGROUND - PRO ENGINE (SHURU SE)
 ══════════════════════════════════════════════════════ */
-function updateOptionsBattle() {
-  if (!chainData || !chainData.length) return;
+/* ══════════════════════════════════════════════════════
+   NAVINS PRO TERMINAL - FINAL INTEGRATED ENGINE
+   Fixes: Advisor Box, 0.0K Issue, and Level Distance
+══════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════
+   NAVINS PRO TERMINAL - MASTER BLOCK (Trigger + Fixed Logic)
+   Fixes: Data Loading, 0.0K Issue, and Level Proximity
+══════════════════════════════════════════════════════ */
 
-  const spot = chainData[0].underlying_spot_price;
-  let ceWriters = 0, ceBuyers = 0, peWriters = 0, peBuyers = 0;
-  let maxCOI = 0, maxPOI = 0, resStrike = 0, supStrike = 0;
+// 1. DATA TRIGGER (Ye Upstox se data aate hi sab chalu karega)
+function onChainLoaded() {
+    const spot = (chainData && chainData[0]) ? chainData[0].underlying_spot_price : 0;
+    if (spot <= 0) return;
 
-  // Sensitivity Filter (Friction Factor) - Catch small moves
-  const friction = 0.01; 
+    // Saare functions ko EK baar call karein
+    updateOptionsBattle(); 
+    calcBuyingDanger();
+    updateSentimentDash();
+    updateTradeSetup();
+    updateOITracker();
+    checkPriceAlerts(spot);
+    runAlerts();
+    renderHeatmap();
 
-  chainData.forEach(d => {
-    const ce = d.call_options?.market_data || {};
-    const pe = d.put_options?.market_data || {};
-    const s = d.strike_price;
+    // Charts aur Storage
+    if (oiAutoSave) saveOISnapshot();
+    updateOIStorageUI();
+    populateCandleStrikes();
+    buildStrategy(activeStrategy);
+    recordPriceActionSnapshot();
+    updatePriceActionStrikes();
+    renderPriceAction();
 
-    /* --- NAYA FIXED LOGIC (Line 2215 ke aas-paas) --- */
-
-// Sirf Spot ke +/- 1000 points ke andar hi Support/Resistance dhundo
-if (Math.abs(s - spot) <= 1000) { 
-    if ((ce.oi || 0) > maxCOI) { 
-        maxCOI = ce.oi; 
-        resStrike = s; 
-    }
-    if ((pe.oi || 0) > maxPOI) { 
-        maxPOI = pe.oi; 
-        supStrike = s; 
-    }
+    // Signal Logging
+    if (typeof checkAndLogSignals === 'function') checkAndLogSignals(spot);
+    if (typeof updateSignalLogs === 'function') updateSignalLogs(spot);
 }
 
-    // 2. Battle Forces Calculation (ATM ±500)
-    const ceChg = (ce.oi || 0) - (ce.prev_oi || 0);
-    const peChg = (pe.oi || 0) - (pe.prev_oi || 0);
-    const ceLtpChg = ((ce.ltp - (ce.close_price || ce.ltp)) / (ce.close_price || 1)) * 100;
-    const peLtpChg = ((pe.ltp - (pe.close_price || pe.ltp)) / (pe.close_price || 1)) * 100;
+// 2. BATTLE LOGIC (Ye wahi code hai jo aapne bheja, fixed version)
+/* ══════════════════════════════════════════════════════
+   NAVINS PRO TERMINAL - FINAL STABLE VERSION
+   Fixes: Missing Labels, 0.0K, and S/R Proximity
+══════════════════════════════════════════════════════ */
+function updateOptionsBattle() {
+    if (!chainData || !chainData.length) return;
 
-    if (Math.abs(s - spot) <= 500) {
-      if (ceChg > 0) {
-        if (ceLtpChg < -friction) { ceWriters += ceChg * 0.85; ceBuyers += ceChg * 0.15; }
-        else if (ceLtpChg > friction) { ceBuyers += ceChg * 0.85; ceWriters += ceChg * 0.15; }
-        else { ceWriters += ceChg * 0.5; ceBuyers += ceChg * 0.5; }
-      }
-      if (peChg > 0) {
-        if (peLtpChg < -friction) { peWriters += peChg * 0.85; peBuyers += peChg * 0.15; }
-        else if (peLtpChg > friction) { peBuyers += peChg * 0.85; peWriters += peChg * 0.15; }
-        else { peWriters += peChg * 0.5; peBuyers += peChg * 0.5; }
-      }
+    const spot = chainData[0].underlying_spot_price;
+    const instrKey = document.getElementById('symbolSel').value;
+    const step = INSTRUMENTS[instrKey]?.step || 50;
+    const atm = Math.round(spot / step) * step;
+
+    let ceWriters = 0, ceBuyers = 0, peWriters = 0, peBuyers = 0;
+    let maxCOI = 0, maxPOI = 0, resStrike = 0, supStrike = 0;
+    let atmCE = null, atmPE = null;
+
+    const friction = 0.01; // Catch 0.01% moves
+
+    chainData.forEach(d => {
+        const ce = d.call_options || {};
+        const pe = d.put_options || {};
+        const s = d.strike_price;
+
+        // 1. INTRADAY S/R: Sirf Spot ke ±500 points mein wall dhundo
+        // Isse aapko 23000 ki jagah 22700/22800 jaise sateek levels milenge
+        if (Math.abs(s - spot) <= 500) { 
+            if ((ce.market_data?.oi || 0) > maxCOI) { maxCOI = ce.market_data.oi; resStrike = s; }
+            if ((pe.market_data?.oi || 0) > maxPOI) { maxPOI = pe.market_data.oi; supStrike = s; }
+        }
+
+        if (s === atm) { atmCE = ce; atmPE = pe; }
+
+        const ceChg = (ce.market_data?.oi || 0) - (ce.market_data?.prev_oi || 0);
+        const peChg = (pe.market_data?.oi || 0) - (pe.market_data?.prev_oi || 0);
+        const ceLtpChg = ((ce.market_data?.ltp - (ce.market_data?.close_price || ce.market_data?.ltp)) / (ce.market_data?.close_price || 1)) * 100;
+        const peLtpChg = ((pe.market_data?.ltp - (pe.market_data?.close_price || pe.market_data?.ltp)) / (pe.market_data?.close_price || 1)) * 100;
+
+        // 2. DISTRIBUTION (Fix 0.0K problem)
+        if (Math.abs(s - spot) <= 500) {
+            if (ceChg > 0) {
+                if (ceLtpChg < -friction) { ceWriters += ceChg * 0.85; ceBuyers += ceChg * 0.15; }
+                else if (ceLtpChg > friction) { ceBuyers += ceChg * 0.85; ceWriters += ceChg * 0.15; }
+                else { ceWriters += ceChg * 0.5; ceBuyers += ceChg * 0.5; }
+            }
+            if (peChg > 0) {
+                if (peLtpChg < -friction) { peWriters += peChg * 0.85; peBuyers += peChg * 0.15; }
+                else if (peLtpChg > friction) { peBuyers += peChg * 0.85; peWriters += peChg * 0.15; }
+                else { peWriters += peChg * 0.5; peBuyers += peChg * 0.5; }
+            }
+        }
+    });
+
+    // 3. ADVISOR LOGIC (With Stop Loss Hint)
+    const adviceEl = document.getElementById('greeksAdvice');
+    if (atmCE && atmPE && adviceEl) {
+        const cDelta = atmCE.option_greeks?.delta || 0;
+        const pDelta = Math.abs(atmPE.option_greeks?.delta || 0);
+        const cLTP = atmCE.market_data?.ltp || 0;
+        const pLTP = atmPE.market_data?.ltp || 0;
+
+        if (peWriters > peBuyers && cDelta >= 0.45) {
+            adviceEl.innerHTML = `<span style="color:#00e5a0; font-weight:bold;">🚀 CALL BUYING:</span> Buy <b>${atm} CE</b> @ <b>₹${cLTP}</b> (SL: ₹${(cLTP*0.7).toFixed(1)})`;
+        } else if (ceWriters > ceBuyers && pDelta >= 0.45) {
+            adviceEl.innerHTML = `<span style="color:#ff3d6b; font-weight:bold;">📉 PUT BUYING:</span> Buy <b>${atm} PE</b> @ <b>₹${pLTP}</b> (SL: ₹${(pLTP*0.7).toFixed(1)})`;
+        } else {
+            adviceEl.innerHTML = `<span style="color:var(--muted)">⏳ SIDEWAYS: Neutral range. Scalping avoid karein.</span>`;
+        }
     }
-  });
 
-  // Number Formatter (Lakhs/K)
-  const fNum = (n) => n >= 100000 ? (n/100000).toFixed(2) + 'L' : (n/1000).toFixed(1) + 'K';
+    // 4. UI UPDATES (Fixing Labels & Numbers)
+    const fNum = (n) => n >= 100000 ? (n/100000).toFixed(2) + 'L' : (n/1000).toFixed(1) + 'K';
+    document.getElementById('ceWriteVal').textContent = fNum(ceWriters);
+    document.getElementById('ceBuyVal').textContent = fNum(ceBuyers);
+    document.getElementById('peWriteVal').textContent = fNum(peWriters);
+    document.getElementById('peBuyVal').textContent = fNum(peBuyers);
+    document.getElementById('strongResist').textContent = resStrike || '—';
+    document.getElementById('strongSupport').textContent = supStrike || '—';
+    
+    // FIXING THE LABELS (Dominance)
+    document.getElementById('callWinner').innerHTML = ceWriters > ceBuyers ? '<span style="color:#ff3d6b">WRITERS DOMINANT 🔴</span>' : '<span style="color:#00e5a0">BUYERS DOMINANT 🟢</span>';
+    document.getElementById('putWinner').innerHTML = peWriters > peBuyers ? '<span style="color:#00e5a0">WRITERS DOMINANT 🟢</span>' : '<span style="color:#ff3d6b">BUYERS DOMINANT 🔴</span>';
 
-  // 3. UI Update Logic
-  document.getElementById('ceWriteVal').textContent = fNum(ceWriters);
-  document.getElementById('ceBuyVal').textContent = fNum(ceBuyers);
-  document.getElementById('peWriteVal').textContent = fNum(peWriters);
-  document.getElementById('peBuyVal').textContent = fNum(peBuyers);
-  document.getElementById('strongResist').textContent = resStrike;
-  document.getElementById('strongSupport').textContent = supStrike;
-  
-  const cwEl = document.getElementById('callWinner');
-  const pwEl = document.getElementById('putWinner');
-  const vEl = document.getElementById('marketVerdict');
-
-  // Comparison
-  cwEl.innerHTML = ceWriters > ceBuyers ? '<span style="color:#ff3d6b">WRITERS DOMINANT 🔴</span>' : '<span style="color:#00e5a0">BUYERS DOMINANT 🟢</span>';
-  pwEl.innerHTML = peWriters > peBuyers ? '<span style="color:#00e5a0">WRITERS DOMINANT 🟢</span>' : '<span style="color:#ff3d6b">BUYERS DOMINANT 🔴</span>';
-
-  // 4. Final Verdict
-  if (ceWriters > ceBuyers * 1.5 && peBuyers > peWriters * 1.5) {
-    vEl.textContent = "STRONG BEARISH 📉"; vEl.style.color = "#ff3d6b";
-  } else if (peWriters > peBuyers * 1.5 && ceBuyers > ceWriters * 1.5) {
-    vEl.textContent = "STRONG BULLISH 🚀"; vEl.style.color = "#00e5a0";
-  } else if (ceBuyers > ceWriters && peWriters > peBuyers) {
-    vEl.textContent = "RECOVERY IN PROGRESS ↗️"; vEl.style.color = "#00c9ff";
-  } else {
-    vEl.textContent = "SIDEWAYS / CHOPPY ↔️"; vEl.style.color = "#ffd000";
-  }
+    const vEl = document.getElementById('marketVerdict');
+    if (ceWriters > ceBuyers * 1.5 && peBuyers > peWriters * 1.5) { vEl.textContent = "STRONG BEARISH 📉"; vEl.style.color = "#ff3d6b"; }
+    else if (peWriters > peBuyers * 1.5 && ceBuyers > ceWriters * 1.5) { vEl.textContent = "STRONG BULLISH 🚀"; vEl.style.color = "#00e5a0"; }
+    else { vEl.textContent = "SIDEWAYS ⚖️"; vEl.style.color = "#ffd000"; }
 }
 </script>
-
 </body>
 </html>
