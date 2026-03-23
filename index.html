@@ -8271,9 +8271,19 @@ function updateOptionsBattle() {
     const pe = d.put_options?.market_data || {};
     const s = d.strike_price;
 
-    // 1. Identify Strong Support & Resistance (Highest OI)
-    if ((ce.oi || 0) > maxCOI) { maxCOI = ce.oi; resStrike = s; }
-    if ((pe.oi || 0) > maxPOI) { maxPOI = pe.oi; supStrike = s; }
+    /* --- NAYA FIXED LOGIC (Line 2215 ke aas-paas) --- */
+
+// Sirf Spot ke +/- 1000 points ke andar hi Support/Resistance dhundo
+if (Math.abs(s - spot) <= 1000) { 
+    if ((ce.oi || 0) > maxCOI) { 
+        maxCOI = ce.oi; 
+        resStrike = s; 
+    }
+    if ((pe.oi || 0) > maxPOI) { 
+        maxPOI = pe.oi; 
+        supStrike = s; 
+    }
+}
 
     // 2. Battle Forces Calculation (ATM ±500)
     const ceChg = (ce.oi || 0) - (ce.prev_oi || 0);
