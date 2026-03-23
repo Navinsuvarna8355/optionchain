@@ -536,11 +536,19 @@ canvas.oi-chart { width: 100% !important; }
   z-index: 9998 !important;
   margin: 0 !important;
   border-radius: 0 !important;
-  background: #0d1420 !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+  background: var(--panel) !important;
+  overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
+}
+.chart-fullscreen #emaChartWrap {
+  flex: 1 !important;
+  overflow: hidden !important;
+  padding: 0 4px 4px !important;
+}
+.chart-fullscreen #candleCanvas {
+  width: 100% !important;
+  display: block !important;
 }
 .chart-fullscreen #candleCanvas {
   height: calc(100dvh - 160px) !important;
@@ -1596,6 +1604,39 @@ tr.atm-row td.strike-cell { color:var(--accent); }
       <div class="sent-bar"><div class="sent-bar-fill" id="sentTimeBar" style="width:0%;background:var(--accent2)"></div></div>
     </div>
   </div>
+  <div class="battle-wrap" id="battleWrap">
+    <div class="battle-header" style="background:#162236; padding:12px 16px; border-bottom:1px solid var(--border);">
+        <div style="font-family:var(--font-disp); font-size:18px; letter-spacing:2px; color:var(--text);">⚔️ OPTIONS BATTLEGROUND (LIVE STATS)</div>
+    </div>
+    <div class="battle-grid" style="display:grid; grid-template-columns: 1fr 1fr; background:var(--border); gap:1px;">
+        <div class="battle-cell" style="background:var(--panel2); padding:16px;">
+            <div style="font-family:var(--font-mono); font-size:10px; color:var(--muted); margin-bottom:10px;">CALL SIDE (RESISTANCE)</div>
+            <div id="callWinner" class="b-winner" style="font-size:20px; margin-bottom:8px; font-family:var(--font-disp);">—</div>
+            <div style="font-family:var(--font-mono); font-size:11px; color:#ff3d6b; background:rgba(255,61,107,0.1); padding:8px; border-radius:6px;">
+                Writers: <span id="ceWriteVal" style="font-weight:bold;">0</span> | 
+                Buyers: <span id="ceBuyVal" style="font-weight:bold;">0</span>
+            </div>
+            <div style="font-family:var(--font-mono); font-size:11px; margin-top:10px; color:var(--text);">
+                🚧 RESISTANCE: <span id="strongResist" style="color:var(--red); font-weight:bold; font-size:14px;">—</span>
+            </div>
+        </div>
+        <div class="battle-cell" style="background:var(--panel2); padding:16px;">
+            <div style="font-family:var(--font-mono); font-size:10px; color:var(--muted); margin-bottom:10px;">PUT SIDE (SUPPORT)</div>
+            <div id="putWinner" class="b-winner" style="font-size:20px; margin-bottom:8px; font-family:var(--font-disp);">—</div>
+            <div style="font-family:var(--font-mono); font-size:11px; color:#00e5a0; background:rgba(0,229,160,0.1); padding:8px; border-radius:6px;">
+                Writers: <span id="peWriteVal" style="font-weight:bold;">0</span> | 
+                Buyers: <span id="peBuyVal" style="font-weight:bold;">0</span>
+            </div>
+            <div style="font-family:var(--font-mono); font-size:11px; margin-top:10px; color:var(--text);">
+                🛡️ SUPPORT: <span id="strongSupport" style="color:var(--green); font-weight:bold; font-size:14px;">—</span>
+            </div>
+        </div>
+    </div>
+    <div class="b-verdict-box" style="background:var(--panel3); padding:18px; text-align:center;">
+        <div style="font-family:var(--font-mono); font-size:10px; color:var(--muted); letter-spacing:2px; margin-bottom:5px;">🔮 PRO MARKET VERDICT</div>
+        <div id="marketVerdict" style="font-family:var(--font-disp); font-size:32px; letter-spacing:2px;">—</div>
+    </div>
+</div>
 
   <div class="trade-setup-wrap">
     <div class="trade-setup-header" onclick="toggleTradeSetup()">
@@ -1794,6 +1835,37 @@ tr.atm-row td.strike-cell { color:var(--accent); }
         <canvas id="oiChartCanvas" height="320" style="width:100%;height:320px;"></canvas>
       </div>
       <div class="chart-signal-legend" id="signalLegend"></div>
+    </div>
+  </div>
+
+
+  <!-- PRICE ACTION SECTION -->
+  <div class="chart-section" id="priceActionSection" style="display:none;">
+    <div class="chart-topbar" style="flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="chart-title">PRICE ACTION</div>
+        <div class="table-sub">Strike LTP &amp; Simulated Candles</div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <div style="font-size:8px;color:var(--muted);font-family:var(--font-mono);letter-spacing:1px;">STRIKE</div>
+          <select id="paStrikeSel" onchange="renderPriceAction()" style="background:var(--panel2);border:1px solid var(--border2);color:var(--text);padding:5px 10px;border-radius:6px;font-family:var(--font-mono);font-size:11px;min-width:140px;outline:none;"></select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:3px;">
+          <div style="font-size:8px;color:var(--muted);font-family:var(--font-mono);letter-spacing:1px;">TYPE</div>
+          <select id="paTypeSel" onchange="renderPriceAction()" style="background:var(--panel2);border:1px solid var(--border2);color:var(--text);padding:5px 10px;border-radius:6px;font-family:var(--font-mono);font-size:11px;outline:none;">
+            <option value="call">CALL</option>
+            <option value="put">PUT</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="chart-body" style="padding:10px 16px;">
+      <div style="position:relative;width:100%;height:300px;">
+        <canvas id="priceActionCanvas" style="width:100%;height:300px;display:block;"></canvas>
+      </div>
+      <div id="paSignalLegend" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-family:var(--font-mono);font-size:9px;color:var(--muted);"></div>
     </div>
   </div>
 
@@ -3463,6 +3535,200 @@ function renderChart(data, type = 'oi') {
 }
 
 
+
+/* ══════════════════════════════════════════════════════
+   PRICE ACTION CHART
+   Strike LTP simulated candles from refresh history
+══════════════════════════════════════════════════════ */
+let paChart = null;
+let paHistory = {};  // { "23100_call": [{time, open, high, low, close, vol}] }
+
+function updatePriceActionStrikes() {
+  if (!chainData.length) return;
+  const instrKey = document.getElementById('symbolSel').value;
+  const step = INSTRUMENTS[instrKey]?.step || 50;
+  const spot = chainData[0]?.underlying_spot_price || 0;
+  const atm  = Math.round(spot / step) * step;
+
+  const sel = document.getElementById('paStrikeSel');
+  if (!sel) return;
+
+  // Build strike list around ATM
+  const range = parseInt(document.getElementById('strikeRange').value) || 15;
+  const strikes = [];
+  chainData.forEach(d => {
+    if (Math.abs(d.strike_price - atm) <= range * step) {
+      strikes.push(d.strike_price);
+    }
+  });
+  strikes.sort((a, b) => a - b);
+
+  const curVal = sel.value;
+  sel.innerHTML = strikes.map(s =>
+    `<option value="${s}" ${s == atm ? 'selected' : ''}>${s.toLocaleString('en-IN')}${s === atm ? ' (ATM)' : s > atm ? ' CE' : ' PE'}</option>`
+  ).join('');
+  if (curVal && strikes.includes(+curVal)) sel.value = curVal;
+}
+
+function recordPriceActionSnapshot() {
+  if (!chainData.length) return;
+  const now = new Date();
+  const timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+
+  chainData.forEach(d => {
+    const ce = d.call_options?.market_data || {};
+    const pe = d.put_options?.market_data  || {};
+    const s  = d.strike_price;
+
+    ['call','put'].forEach(type => {
+      const m   = type === 'call' ? ce : pe;
+      const ltp = m.ltp || 0;
+      if (!ltp) return;
+
+      const key = s + '_' + type;
+      if (!paHistory[key]) paHistory[key] = [];
+
+      const hist = paHistory[key];
+      // If same minute, update last candle
+      if (hist.length && hist[hist.length-1].time === timeStr) {
+        const last = hist[hist.length-1];
+        last.high  = Math.max(last.high, ltp);
+        last.low   = Math.min(last.low,  ltp);
+        last.close = ltp;
+        last.vol   = (last.vol || 0) + (m.volume || 0);
+      } else {
+        const prev  = hist.length ? hist[hist.length-1].close : ltp;
+        hist.push({ time: timeStr, open: prev, high: Math.max(prev, ltp), low: Math.min(prev, ltp), close: ltp, vol: m.volume || 0 });
+      }
+      // Keep last 80 candles
+      if (hist.length > 80) hist.shift();
+    });
+  });
+}
+
+function renderPriceAction() {
+  const sel    = document.getElementById('paStrikeSel');
+  const typeSel= document.getElementById('paTypeSel');
+  if (!sel || !typeSel) return;
+
+  const strike = parseInt(sel.value) || 0;
+  const type   = typeSel.value;
+  const key    = strike + '_' + type;
+  const hist   = paHistory[key] || [];
+
+  const section = document.getElementById('priceActionSection');
+  if (section) section.style.display = 'block';
+
+  if (!hist.length) {
+    // No history yet - show current LTP as single point
+    const row  = chainData.find(d => d.strike_price === strike);
+    const m    = type === 'call' ? row?.call_options?.market_data : row?.put_options?.market_data;
+    const ltp  = m?.ltp || 0;
+    if (ltp) {
+      const now = new Date();
+      const t   = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+      paHistory[key] = [{ time: t, open: ltp, high: ltp, low: ltp, close: ltp, vol: 0 }];
+    }
+    if (!paHistory[key]?.length) return;
+  }
+
+  const data   = paHistory[key];
+  const labels = data.map(c => c.time);
+  const opens  = data.map(c => c.open);
+  const closes = data.map(c => c.close);
+  const highs  = data.map(c => c.high);
+  const lows   = data.map(c => c.low);
+
+  const yMin  = Math.min(...lows)   * 0.995;
+  const yMax  = Math.max(...highs)  * 1.005;
+
+  const bullC = 'rgba(0,229,160,0.85)';
+  const bearC = 'rgba(255,61,107,0.85)';
+  const bullB = 'rgba(0,229,160,1)';
+  const bearB = 'rgba(255,61,107,1)';
+
+  const canvas = document.getElementById('priceActionCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  if (paChart) { paChart.destroy(); paChart = null; }
+
+  // Current LTP info
+  const lastCandle = data[data.length - 1];
+  const firstClose = data[0].open;
+  const chg = lastCandle.close - firstClose;
+  const chgPct = firstClose > 0 ? (chg / firstClose * 100).toFixed(2) : 0;
+  const chgColor = chg >= 0 ? '#00e5a0' : '#ff3d6b';
+
+  document.getElementById('paSignalLegend').innerHTML = `
+    <span>Strike: <b style="color:var(--accent)">${strike.toLocaleString('en-IN')}</b></span>
+    <span>Type: <b style="color:${type==='call'?'#00e5a0':'#ff3d6b'}">${type.toUpperCase()}</b></span>
+    <span>LTP: <b style="color:var(--text)">₹${lastCandle.close.toFixed(2)}</b></span>
+    <span>Change: <b style="color:${chgColor}">${chg>=0?'+':''}${chg.toFixed(2)} (${chg>=0?'+':''}${chgPct}%)</b></span>
+    <span>High: <b style="color:#00e5a0">₹${Math.max(...highs).toFixed(2)}</b></span>
+    <span>Low: <b style="color:#ff3d6b">₹${Math.min(...lows).toFixed(2)}</b></span>
+    <span style="color:var(--muted);">${data.length} candles</span>
+  `;
+
+  paChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Wick',
+          data: data.map(c => [c.low, c.high]),
+          backgroundColor: data.map(c => c.close >= c.open ? 'rgba(0,229,160,0.3)' : 'rgba(255,61,107,0.3)'),
+          borderColor:     data.map(c => c.close >= c.open ? bullB : bearB),
+          borderWidth: 1, barPercentage: 0.15, categoryPercentage: 1, order: 2,
+        },
+        {
+          label: 'Body',
+          data: data.map(c => [c.open, c.close]),
+          backgroundColor: data.map(c => c.close >= c.open ? bullC : bearC),
+          borderColor:     data.map(c => c.close >= c.open ? bullB : bearB),
+          borderWidth: 1, barPercentage: 0.7, categoryPercentage: 0.85, order: 1,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#0d1420', borderColor: '#1e3050', borderWidth: 1,
+          titleColor: '#00c9ff', bodyColor: '#ddeeff',
+          titleFont: { family: 'Space Mono', size: 10 },
+          bodyFont:  { family: 'Space Mono', size: 9 },
+          intersect: false, mode: 'index',
+          filter: item => item.dataset.label === 'Body',
+          callbacks: {
+            title: items => items[0].label,
+            label: item => {
+              const c = data[item.dataIndex];
+              return `O:${c.open.toFixed(1)}  H:${c.high.toFixed(1)}  L:${c.low.toFixed(1)}  C:${c.close.toFixed(1)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(30,48,80,0.4)' },
+          ticks: { color: '#4a6a8a', font: { family: 'Space Mono', size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 10 }
+        },
+        y: {
+          position: 'right',
+          min: yMin, max: yMax,
+          grid: { color: 'rgba(30,48,80,0.4)' },
+          ticks: { color: '#4a6a8a', font: { family: 'Space Mono', size: 9 }, callback: v => v.toFixed(1) }
+        }
+      }
+    }
+  });
+}
+
 /* ══════════════════════════════════════════════════════
    STRIKE RECOMMENDATION TAG
 ══════════════════════════════════════════════════════ */
@@ -4862,17 +5128,23 @@ function scrollEmaChart(pct) {
 function toggleChartFullscreen() {
   const sec  = document.getElementById('candleSection');
   const btn  = document.getElementById('fullscreenBtn');
+  const wrap = document.getElementById('emaChartWrap');
   const isFs = sec.classList.contains('chart-fullscreen');
 
   if (isFs) {
+    // Exit fullscreen
     sec.classList.remove('chart-fullscreen');
     document.body.classList.remove('chart-fs-active');
     btn.innerHTML = '&#x26F6;';
-    btn.title = 'Maximize Chart';
+    btn.title = 'Fullscreen';
     document.body.style.overflow = '';
-    document.body.style.position = '';
+    // Restore canvas normal height
+    const canvas = document.getElementById('candleCanvas');
+    if (canvas) canvas.style.height = '360px';
+    if (wrap) wrap.style.height = '';
     window.scrollTo(0, window._fsScrollY || 0);
   } else {
+    // Enter fullscreen
     window._fsScrollY = window.scrollY;
     sec.classList.add('chart-fullscreen');
     document.body.classList.add('chart-fs-active');
@@ -4881,16 +5153,27 @@ function toggleChartFullscreen() {
     document.body.style.overflow = 'hidden';
     window.scrollTo(0, 0);
   }
+
   setTimeout(() => {
-    // Force canvas resize then render
     const canvas = document.getElementById('candleCanvas');
-    if (canvas) {
-      canvas.style.width = '100%';
-      canvas.style.height = '';
+    const wrap2  = document.getElementById('emaChartWrap');
+    if (!canvas) return;
+
+    if (sec.classList.contains('chart-fullscreen')) {
+      // Fullscreen: canvas height = window height minus top bars
+      const topBarsH = 120; // toolbar + legend + signal boxes
+      const h = Math.max(300, window.innerHeight - topBarsH);
+      canvas.style.width  = '100%';
+      canvas.style.height = h + 'px';
+      if (wrap2) wrap2.style.height = h + 'px';
+    } else {
+      canvas.style.width  = '100%';
+      canvas.style.height = '360px';
+      if (wrap2) wrap2.style.height = '';
     }
     renderEmaChart();
     if (window._attachChartDrag) window._attachChartDrag();
-  }, 150);
+  }, 100);
 }
 
 // Escape key exits fullscreen
@@ -6518,85 +6801,35 @@ function logNotif(msg) {
 /* ══════════════════════════════════════════════════════
    HOOK ALL NEW FEATURES INTO fetchChain
 ══════════════════════════════════════════════════════ */
-const _origFetchChainSuccess = window._fetchChainHooked;
 function onChainLoaded() {
-  calcBuyingDanger();
-  updateSentimentDash();
-  updateTradeSetup();
-  updateOITracker();
-  
-  const spot = (chainData && chainData[0]) ? chainData[0].underlying_spot_price : 0;
-  
-  checkPriceAlerts(spot);
-  runAlerts();
-  renderHeatmap();
-
-  // OI auto-save
-  if (oiAutoSave) saveOISnapshot();
-  updateOIStorageUI();
-  populateCandleStrikes();
-  buildStrategy(activeStrategy);
-
-  // ── Master Signal Tester — check signals + update P&L ──
-  if (spot > 0) {
-    checkAndLogSignals(spot);
-    updateSignalLogs(spot);
-  }
-
-  if (!chainData || !chainData.length) return;
-
-  // --- TRIGGER SIGNAL TESTER (HOOK) ---
-  if (typeof checkAndLogSignals === 'function' && spot > 0) {
-      checkAndLogSignals(spot);
-  }
-  
-  // --- UPDATE PNL TRACKING ---
-  if (typeof updateSignalLogs === 'function' && spot > 0) {
-      updateSignalLogs(spot);
-  }
-  
-  
-  // ── TRIGGER SIGNAL TESTER ──
-  if (typeof checkAndLogSignals === 'function') {
-      checkAndLogSignals(spot);
-      updateSignalLogs(spot);
-  }
-
-  const instrKey = document.getElementById('symbolSel').value;
-  const label    = INSTRUMENTS[instrKey]?.label || 'INDEX';
-
-  // ── Detect direction change ──
-  try {
-    const result = analyzeOptionChain();
-    const newDir = result.dirClass;
-    const newMaxPain = result._summary.maxPain;
-
-    if (lastSignalDirection && lastSignalDirection !== newDir) {
-      // Direction changed!
-      const triggerType = newDir === 'bullish' ? '📈 BULLISH SIGNAL' : newDir === 'bearish' ? '📉 BEARISH SIGNAL' : '↔ NEUTRAL SIGNAL';
-      const alertKey    = newDir === 'bullish' ? 'bull' : newDir === 'bearish' ? 'bear' : null;
-      if (alertKey && document.getElementById('tog_' + alertKey)?.classList.contains('on')) {
-        sendNotification(triggerType + ' — ' + label + ' @ ' + spot, triggerType, alertKey);
-        toast('🔔 Signal changed → ' + newDir.toUpperCase() + ' — contacts ko alert bheja!', false);
-      }
+    const spot = (chainData && chainData[0]) ? chainData[0].underlying_spot_price : 0;
+    if (spot <= 0) {
+        console.log("Waiting for spot price...");
+        return;
     }
 
-    // ── Max Pain shift detection ──
-    const instrData = INSTRUMENTS[instrKey];
-    if (lastMaxPain && Math.abs(newMaxPain - lastMaxPain) >= (instrData?.step || 50) * 2) {
-      if (document.getElementById('tog_pain')?.classList.contains('on')) {
-        sendNotification('🎯 Max Pain shifted: ' + lastMaxPain + ' → ' + newMaxPain, '🎯 MAX PAIN SHIFT', 'pain');
-      }
-    }
+    // 1. CALCULATION ENGINES (Sirf ek-ek baar call karna hai)
+    updateOptionsBattle(); 
+    calcBuyingDanger();
+    updateSentimentDash();
+    updateTradeSetup();
+    updateOITracker();
+    checkPriceAlerts(spot);
+    runAlerts();
+    renderHeatmap();
 
-    lastSignalDirection = newDir;
-    lastMaxPain         = newMaxPain;
-  } catch(e) {}
+    // 2. STORAGE & CHARTS
+    if (oiAutoSave) saveOISnapshot();
+    updateOIStorageUI();
+    populateCandleStrikes();
+    buildStrategy(activeStrategy);
+    recordPriceActionSnapshot();
+    updatePriceActionStrikes();
+    renderPriceAction();
 
-  // ── Auto-refresh alert ──
-  if (document.getElementById('tog_auto')?.classList.contains('on')) {
-    sendNotification('⏰ Auto-refresh: ' + label + ' @ ' + spot, '⏰ AUTO REFRESH', 'auto');
-  }
+    // 3. SIGNAL TESTER LOGIC
+    if (typeof checkAndLogSignals === 'function') checkAndLogSignals(spot);
+    if (typeof updateSignalLogs === 'function') updateSignalLogs(spot);
 }
 
 
@@ -8020,6 +8253,78 @@ function exportSignalLogs() {
 // [duplicate checkAndLogSignals removed]
 
 // [old updateSignalLogs removed]
+/* ══════════════════════════════════════════════════════
+   OPTIONS BATTLEGROUND - PRO ENGINE (SHURU SE)
+══════════════════════════════════════════════════════ */
+function updateOptionsBattle() {
+  if (!chainData || !chainData.length) return;
+
+  const spot = chainData[0].underlying_spot_price;
+  let ceWriters = 0, ceBuyers = 0, peWriters = 0, peBuyers = 0;
+  let maxCOI = 0, maxPOI = 0, resStrike = 0, supStrike = 0;
+
+  // Sensitivity Filter (Friction Factor) - Catch small moves
+  const friction = 0.01; 
+
+  chainData.forEach(d => {
+    const ce = d.call_options?.market_data || {};
+    const pe = d.put_options?.market_data || {};
+    const s = d.strike_price;
+
+    // 1. Identify Strong Support & Resistance (Highest OI)
+    if ((ce.oi || 0) > maxCOI) { maxCOI = ce.oi; resStrike = s; }
+    if ((pe.oi || 0) > maxPOI) { maxPOI = pe.oi; supStrike = s; }
+
+    // 2. Battle Forces Calculation (ATM ±500)
+    const ceChg = (ce.oi || 0) - (ce.prev_oi || 0);
+    const peChg = (pe.oi || 0) - (pe.prev_oi || 0);
+    const ceLtpChg = ((ce.ltp - (ce.close_price || ce.ltp)) / (ce.close_price || 1)) * 100;
+    const peLtpChg = ((pe.ltp - (pe.close_price || pe.ltp)) / (pe.close_price || 1)) * 100;
+
+    if (Math.abs(s - spot) <= 500) {
+      if (ceChg > 0) {
+        if (ceLtpChg < -friction) { ceWriters += ceChg * 0.85; ceBuyers += ceChg * 0.15; }
+        else if (ceLtpChg > friction) { ceBuyers += ceChg * 0.85; ceWriters += ceChg * 0.15; }
+        else { ceWriters += ceChg * 0.5; ceBuyers += ceChg * 0.5; }
+      }
+      if (peChg > 0) {
+        if (peLtpChg < -friction) { peWriters += peChg * 0.85; peBuyers += peChg * 0.15; }
+        else if (peLtpChg > friction) { peBuyers += peChg * 0.85; peWriters += peChg * 0.15; }
+        else { peWriters += peChg * 0.5; peBuyers += peChg * 0.5; }
+      }
+    }
+  });
+
+  // Number Formatter (Lakhs/K)
+  const fNum = (n) => n >= 100000 ? (n/100000).toFixed(2) + 'L' : (n/1000).toFixed(1) + 'K';
+
+  // 3. UI Update Logic
+  document.getElementById('ceWriteVal').textContent = fNum(ceWriters);
+  document.getElementById('ceBuyVal').textContent = fNum(ceBuyers);
+  document.getElementById('peWriteVal').textContent = fNum(peWriters);
+  document.getElementById('peBuyVal').textContent = fNum(peBuyers);
+  document.getElementById('strongResist').textContent = resStrike;
+  document.getElementById('strongSupport').textContent = supStrike;
+  
+  const cwEl = document.getElementById('callWinner');
+  const pwEl = document.getElementById('putWinner');
+  const vEl = document.getElementById('marketVerdict');
+
+  // Comparison
+  cwEl.innerHTML = ceWriters > ceBuyers ? '<span style="color:#ff3d6b">WRITERS DOMINANT 🔴</span>' : '<span style="color:#00e5a0">BUYERS DOMINANT 🟢</span>';
+  pwEl.innerHTML = peWriters > peBuyers ? '<span style="color:#00e5a0">WRITERS DOMINANT 🟢</span>' : '<span style="color:#ff3d6b">BUYERS DOMINANT 🔴</span>';
+
+  // 4. Final Verdict
+  if (ceWriters > ceBuyers * 1.5 && peBuyers > peWriters * 1.5) {
+    vEl.textContent = "STRONG BEARISH 📉"; vEl.style.color = "#ff3d6b";
+  } else if (peWriters > peBuyers * 1.5 && ceBuyers > ceWriters * 1.5) {
+    vEl.textContent = "STRONG BULLISH 🚀"; vEl.style.color = "#00e5a0";
+  } else if (ceBuyers > ceWriters && peWriters > peBuyers) {
+    vEl.textContent = "RECOVERY IN PROGRESS ↗️"; vEl.style.color = "#00c9ff";
+  } else {
+    vEl.textContent = "SIDEWAYS / CHOPPY ↔️"; vEl.style.color = "#ffd000";
+  }
+}
 </script>
 
 </body>
